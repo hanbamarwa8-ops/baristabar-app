@@ -5,6 +5,7 @@ import { FeaturedProductsSection } from "@/components/organisms/FeaturedProducts
 import { Footer } from "@/components/organisms/Footer/Footer";
 import { CoffeeMatchSection } from "@/components/organisms/CoffeeMatchSection/CoffeeMatchSection";
 import { BeanBoxSection } from "@/components/organisms/BeanBoxSection/BeanBoxSection";
+import { ShopByCategorySection } from "@/components/organisms/ShopByCategorySection/ShopByCategorySection";
 export function HomeTemplate() {
   return (
     <>
@@ -14,6 +15,7 @@ export function HomeTemplate() {
         <HeroSection />
         <DiscoverySection />
         <FeaturedProductsSection />
+        <ShopByCategorySection />
         <CoffeeMatchSection />
         <BeanBoxSection />
         
