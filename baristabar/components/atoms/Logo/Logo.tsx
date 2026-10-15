@@ -15,20 +15,16 @@ export function Logo() {
         aria-hidden="true"
       >
         <g transform="rotate(38 32 32)">
-          <path
-            d="M32 4 C44 5 53 17 53 31
-               C53 45 44 59 32 60
-               C20 59 11 45 11 31
-               C11 17 20 5 32 4Z"
-            fill="#3B2418"
-          />
-          <path
-            d="M28 5 C21 17 41 24 31 35
-               C23 45 30 53 34 59"
-            stroke="#FFFFFF"
-            strokeWidth="3.5"
-            strokeLinecap="round"
-          />
+        <path
+        d="M32 4 C44 5 53 17 53 31 C53 45 44 59 32 60 C20 59 11 45 11 31 C11 17 20 5 32 4Z"
+        fill="#3B2418"
+       />
+       <path 
+       d="M28 5 C21 17 41 24 31 35 C23 45 30 53 34 59"
+       stroke="#FFFFFF"
+       strokeWidth="3.5"
+       strokeLinecap="round"
+       />
         </g>
       </svg>
 
