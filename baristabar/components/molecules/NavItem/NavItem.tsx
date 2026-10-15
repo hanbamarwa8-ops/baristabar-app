@@ -9,7 +9,10 @@ export function NavItem({ href, label }: NavItemProps) {
   return (
     <Link
       href={href}
-      className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+      className="
+        text-sm font-medium text-stone-600
+        transition-colors hover:text-[#3B2418]
+      "
     >
       {label}
     </Link>

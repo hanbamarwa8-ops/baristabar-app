@@ -1,54 +1,67 @@
-import { Search, User, ShoppingBag } from "lucide-react";
+import { Logo } from "@/components/atoms/Logo";
+import { Icon } from "@/components/atoms/Icon";
+import { Button } from "@/components/atoms/IconButton";
+import { NavItem } from "@/components/molecules/NavItem";
 
-import { Logo } from "@/components/atoms/Logo/Logo";
-import { Button } from "@/components/atoms/IconButton/Button";
-import { NavItem } from "@/components/molecules/NavItem/NavItem";
+const navigation = [
+  { href: "/", label: "Home" },
+  { href: "/shop", label: "Shop" },
+  { href: "/coffee", label: "Coffee" },
+  { href: "/discovery", label: "Discovery" },
+  { href: "/recipes", label: "Recipes" },
+  { href: "/beanbox", label: "BeanBox" },
+];
 
 export function Navbar() {
   return (
-    <header className="w-full border-b bg-background">
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
+    <header className="sticky top-0 z-50 w-full border-b border-stone-200 bg-white">
+      <div className="mx-auto grid h-[72px] max-w-[1240px] grid-cols-[1fr_auto_1fr] items-center px-6">
 
         {/* Logo */}
-        <Logo />
+        <div className="justify-self-start">
+          <Logo />
+        </div>
 
         {/* Navigation */}
-        <nav className="hidden items-center gap-8 md:flex">
-          <NavItem href="/" label="Home" />
-          <NavItem href="/shop" label="Shop" />
-          <NavItem href="/coffee" label="Coffee" />
-          <NavItem href="/discovery" label="Discovery" />
-          <NavItem href="/recipes" label="Recipes" />
-          <NavItem href="/beanbox" label="BeanBox" />
+        <nav
+          aria-label="Main navigation"
+          className="hidden items-center gap-8 md:flex"
+        >
+          {navigation.map((item) => (
+            <NavItem
+              key={item.href}
+              href={item.href}
+              label={item.label}
+            />
+          ))}
         </nav>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            aria-label="Search"
-            className="h-10 w-10 rounded-full p-0 hover:bg-muted"
-          >
-            <Search className="h-5 w-5" />
-          </Button>
+        <div className="flex items-center justify-self-end gap-1">
+        <Button
+  variant="ghost"
+  aria-label="Search"
+  className="h-9 w-9 cursor-pointer rounded-full p-0"
+>
+  <Icon name="search" size={17} />
+</Button>
 
-          <Button
-            type="button"
-            aria-label="Account"
-            className="h-10 w-10 rounded-full p-0 hover:bg-muted"
-          >
-            <User className="h-5 w-5" />
-          </Button>
+<Button
+  variant="ghost"
+  aria-label="Account"
+  className="h-9 w-9 cursor-pointer rounded-full p-0"
+>
+  <Icon name="user" size={17} />
+</Button>
 
-          <Button
-            type="button"
-            aria-label="Cart"
-            className="h-10 w-10 rounded-full p-0 hover:bg-muted"
-          >
-            <ShoppingBag className="h-5 w-5" />
-          </Button>
+<Button
+  variant="ghost"
+  aria-label="Cart"
+  className="h-9 w-9 cursor-pointer rounded-full p-0"
+>
+  <Icon name="cart" size={17} />
+</Button>
         </div>
-
       </div>
     </header>
   );
