@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { FeaturedProductCard } from "@/components/molecules/FeaturedProductCard";
 
+export const dynamic = "force-dynamic";
+
 interface Product {
   id: string;
   name: string;
@@ -17,39 +19,22 @@ interface ProductsApiResponse {
   data: Product[];
 }
 
-const additionalSignatureCoffees: Product[] = [
-  {
-    id: "signature-lavazza-oro",
-    name: "Lavazza Qualità Oro",
-    slug: "lavazza-qualita-oro",
-    description: "Un café aux notes florales et fruitées.",
-    price: 79,
-    category: "Café en grains",
-    image_url: "/espresso-blend.jpg",
-    stock: 10,
-  },
-  {
-    id: "signature-super-crema",
-    name: "Lavazza Super Crema",
-    slug: "lavazza-super-crema",
-    description: "Des notes de noisette, de miel et de sucre roux.",
-    price: 69,
-    category: "Café en grains",
-    image_url: "/espresso-blend.jpg",
-    stock: 10,
-  },
-  {
-    id: "signature-colombia-huila",
-    name: "Colombie Huila",
-    slug: "colombia-huila",
-    description:
-      "Un café équilibré aux notes de chocolat et de caramel.",
-    price: 29,
-    category: "Café en grains",
-    image_url: "/espresso-blend.jpg",
-    stock: 10,
-  },
+const featuredSlugs = [
+  "ethiopia-yirgacheffe",
+  "house-espresso-blend",
+  "colombia-supremo",
+  "brazilian-signature-blend",
+  "tunisian-coffee-blend",
 ];
+
+const productImagesBySlug: Record<string, string> = {
+  "ethiopia-yirgacheffe": "/01_Ethiopia_Yirgacheffe_v2.png",
+  "house-espresso-blend": "/02_House_Espresso_Blend_v2.png",
+  "colombia-supremo": "/03_Colombia_Supremo_v2.png",
+  "brazilian-signature-blend":
+    "/05_Brazilian_Signature_Blend_v2.png",
+  "tunisian-coffee-blend": "/06_Tunisian_Coffee_Blend_v2.png",
+};
 
 async function getProducts(): Promise<Product[]> {
   const backendUrl = process.env.BACKEND_URL;
@@ -66,8 +51,7 @@ async function getProducts(): Promise<Product[]> {
     throw new Error(`Erreur API : ${response.status}`);
   }
 
-  const result =
-    (await response.json()) as ProductsApiResponse;
+  const result = (await response.json()) as ProductsApiResponse;
 
   if (!result.success || !Array.isArray(result.data)) {
     throw new Error("Réponse API invalide");
@@ -87,17 +71,13 @@ export async function FeaturedProductsSection() {
     hasError = true;
   }
 
-  const maxFeaturedProducts = 5;
-  const primaryProducts = products.slice(0, maxFeaturedProducts);
-  const missingCount = Math.max(
-    0,
-    maxFeaturedProducts - primaryProducts.length
+  const productsBySlug = new Map(
+    products.map((product) => [product.slug, product])
   );
 
-  const displayProducts = [
-    ...primaryProducts,
-    ...additionalSignatureCoffees.slice(0, missingCount),
-  ];
+  const displayProducts = featuredSlugs
+    .map((slug) => productsBySlug.get(slug))
+    .filter((product): product is Product => product !== undefined);
 
   return (
     <section
@@ -105,7 +85,6 @@ export async function FeaturedProductsSection() {
       aria-labelledby="featured-products-heading"
     >
       <div className="mx-auto max-w-310">
-        {/* Section heading */}
         <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8A6B55]">
@@ -128,7 +107,6 @@ export async function FeaturedProductsSection() {
           </Link>
         </div>
 
-        {/* Products grid */}
         {hasError ? (
           <p className="mt-10 text-sm text-red-700">
             Impossible de charger les cafés. Vérifie que le backend est démarré.
@@ -138,12 +116,12 @@ export async function FeaturedProductsSection() {
             Aucun café disponible pour le moment.
           </p>
         ) : (
-          <div
-            className="mt-10 grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:mt-14 lg:grid-cols-4 xl:grid-cols-5 xl:gap-x-5"
-          >
-            {displayProducts.map((product) => (
+          <div className="mt-10 grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:mt-14 lg:grid-cols-4 xl:grid-cols-5 xl:gap-x-5">
+            {displayProducts.map((product, index) => (
               <FeaturedProductCard
                 key={product.id}
+                productId={product.id}
+                stock={product.stock}
                 name={product.name}
                 category={product.category}
                 description={
@@ -151,8 +129,13 @@ export async function FeaturedProductsSection() {
                   "Discover our specialty coffee."
                 }
                 price={product.price}
-                image={product.image_url ?? "/espresso-blend.jpg"}
+                image={
+                  productImagesBySlug[product.slug] ??
+                  product.image_url ??
+                  "/02_House_Espresso_Blend_v2.png"
+                }
                 href="/shop"
+                loading={index === 0 ? "eager" : "lazy"}
               />
             ))}
           </div>

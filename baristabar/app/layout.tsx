@@ -7,6 +7,7 @@ import {
 } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { CartProvider } from "@/components/providers/CartProvider";
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -54,7 +55,7 @@ export default function RootLayout({
       )}
     >
       <body className="min-h-full antialiased">
-        {children}
+        <CartProvider>{children}</CartProvider>
       </body>
     </html>
   );

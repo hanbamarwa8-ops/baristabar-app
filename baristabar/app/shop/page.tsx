@@ -1,4 +1,6 @@
-import Image from "next/image";
+import { FeaturedProductCard } from "@/components/molecules/FeaturedProductCard";
+
+export const dynamic = "force-dynamic";
 
 interface Product {
   id: string;
@@ -16,6 +18,26 @@ interface ProductsApiResponse {
   data: Product[];
 }
 
+const productImagesBySlug: Record<string, string> = {
+  "ethiopia-yirgacheffe": "/01_Ethiopia_Yirgacheffe_v2.png",
+  "house-espresso-blend": "/02_House_Espresso_Blend_v2.png",
+  "colombia-supremo": "/03_Colombia_Supremo_v2.png",
+  "brazilian-signature-blend": "/05_Brazilian_Signature_Blend_v2.png",
+  "tunisian-coffee-blend": "/06_Tunisian_Coffee_Blend_v2.png",
+};
+
+const productImagesByName: Record<string, string> = {
+  "ethiopia yirgacheffe": "/01_Ethiopia_Yirgacheffe_v2.png",
+  "house espresso blend": "/02_House_Espresso_Blend_v2.png",
+  "colombia supremo": "/03_Colombia_Supremo_v2.png",
+  "brazilian signature blend": "/05_Brazilian_Signature_Blend_v2.png",
+  "tunisian coffee blend": "/06_Tunisian_Coffee_Blend_v2.png",
+};
+
+function normalizeProductName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
 async function getProducts(): Promise<Product[]> {
   const backendUrl = process.env.BACKEND_URL;
 
@@ -31,8 +53,7 @@ async function getProducts(): Promise<Product[]> {
     throw new Error(`Erreur API : ${response.status}`);
   }
 
-  const result =
-    (await response.json()) as ProductsApiResponse;
+  const result = (await response.json()) as ProductsApiResponse;
 
   if (!result.success || !Array.isArray(result.data)) {
     throw new Error("Réponse API invalide");
@@ -50,15 +71,17 @@ export default async function ShopPage() {
     console.error("Impossible de charger la boutique :", error);
 
     return (
-      <main className="min-h-screen bg-[#F8F5F0] px-6 py-20">
-        <h1 className="font-serif text-4xl text-[#3B2418]">
-          Our Coffee Collection
-        </h1>
+      <main className="min-h-screen bg-[#F8F5F0] px-6 py-20 sm:px-10 lg:px-16">
+        <div className="mx-auto max-w-310">
+          <h1 className="font-serif text-4xl text-[#3B2418]">
+            Our Coffee Collection
+          </h1>
 
-        <p className="mt-6 text-sm text-red-700">
-          Impossible de charger les produits. Vérifie que le backend Express
-          est démarré.
-        </p>
+          <p className="mt-6 text-sm text-red-700">
+            Impossible de charger les produits. Vérifie que le backend
+            Express est démarré.
+          </p>
+        </div>
       </main>
     );
   }
@@ -66,6 +89,7 @@ export default async function ShopPage() {
   return (
     <main className="min-h-screen bg-[#F8F5F0] px-6 py-16 sm:px-10 lg:px-16 lg:py-24">
       <div className="mx-auto max-w-310">
+        {/* Page heading */}
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8A6B55]">
           Explore our collection
         </p>
@@ -78,51 +102,40 @@ export default async function ShopPage() {
           Discover carefully selected coffees for your everyday ritual.
         </p>
 
+        {/* Products */}
         {products.length === 0 ? (
           <p className="mt-12 text-stone-600">
             No coffees available at the moment.
           </p>
         ) : (
-          <div className="mt-12 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-            {products.map((product) => (
-              <article key={product.id} className="group">
-                <div className="relative aspect-4/5 overflow-hidden rounded-xl bg-[#F0E8DE]">
-                  <Image
-                    src={product.image_url ?? "/coffee-origins.jpg"}
-                    alt={product.name}
-                    fill
-                    sizes="(max-width: 767px) 100vw, (max-width: 1023px) 50vw, 33vw"
-                    className="object-cover transition-transform duration-700 group-hover:scale-105"
-                  />
+          <div className="mt-12 grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 xl:gap-x-5">
+            {products.map((product, index) => {
+              const normalizedName = normalizeProductName(product.name);
 
-                  <span className="absolute left-4 top-4 rounded-full bg-[#F8F2EB] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#3B2418]">
-                    {product.category}
-                  </span>
-                </div>
+              const image =
+                productImagesBySlug[product.slug] ??
+                productImagesByName[normalizedName] ??
+                product.image_url ??
+                "/coffee-origins.jpg";
 
-                <div className="pt-5">
-                  <h2 className="font-serif text-2xl text-[#3B2418]">
-                    {product.name}
-                  </h2>
-
-                  <p className="mt-2 text-sm leading-6 text-stone-500">
-                    {product.description ?? "Discover our specialty coffee."}
-                  </p>
-
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-[#3B2418]">
-                      {product.price.toFixed(3)} TND
-                    </p>
-
-                    <p className="text-xs text-stone-500">
-                      {product.stock > 0
-                        ? "In stock"
-                        : "Out of stock"}
-                    </p>
-                  </div>
-                </div>
-              </article>
-            ))}
+              return (
+                <FeaturedProductCard
+                  key={product.id}
+                  productId={product.id}
+                  stock={product.stock}
+                  name={product.name}
+                  category={product.category}
+                  description={
+                    product.description ??
+                    "Discover our specialty coffee."
+                  }
+                  price={product.price}
+                  image={image}
+                  href="/shop"
+                  loading={index === 0 ? "eager" : "lazy"}
+                />
+              );
+            })}
           </div>
         )}
       </div>

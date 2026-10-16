@@ -10,7 +10,7 @@ export function Logo() {
       {/* Coffee bean */}
       <svg
         viewBox="0 0 64 64"
-        className="h-[31px] w-[31px] shrink-0"
+        className="h-7.75 w-7.75 shrink-0"
         fill="none"
         aria-hidden="true"
       >
