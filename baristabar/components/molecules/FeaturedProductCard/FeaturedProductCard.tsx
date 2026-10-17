@@ -16,6 +16,14 @@ interface FeaturedProductCardProps {
   stock: number;
   loading?: "eager" | "lazy";
 }
+const baristaBarProducts = [
+  "ethiopia yirgacheffe",
+  "house espresso blend",
+  "colombia supremo",
+  "brazilian santos",
+  "brazilian signature blend",
+  "tunisian coffee blend",
+];
 
 export function FeaturedProductCard({
   productId,
@@ -29,6 +37,9 @@ export function FeaturedProductCard({
   loading = "lazy",
 }: FeaturedProductCardProps) {
   const { addToCart } = useCart();
+  const isBaristaBarProduct = baristaBarProducts.includes(
+    name.trim().toLowerCase()
+  );
   const [added, setAdded] = useState(false);
 
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(
@@ -84,9 +95,8 @@ export function FeaturedProductCard({
             sizes="(max-width: 639px) 45vw, (max-width: 1023px) 30vw, (max-width: 1279px) 22vw, 18vw"
             className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
           />
-
           <span className="absolute left-3 top-3 rounded-full bg-[#F8F5F0]/95 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#3B2418]">
-            {category}
+            {isBaristaBarProduct ? "Specialty Coffee" : category}
           </span>
         </div>
       </Link>
