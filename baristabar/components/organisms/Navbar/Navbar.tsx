@@ -8,14 +8,14 @@ import { Icon } from "@/components/atoms/Icon";
 import { NavItem } from "@/components/molecules/NavItem";
 import { useCart } from "@/components/providers/CartProvider";
 
-const categories = [
-  { label: "Coffee Beans", slug: "coffee-beans" },
-  { label: "Ground Coffee", slug: "ground-coffee" },
-  { label: "Coffee Capsules", slug: "coffee-capsules" },
-  { label: "Syrups & Flavours", slug: "syrups-flavours" },
-  { label: "Accessories", slug: "accessories" },
-  { label: "Coffee Machines", slug: "coffee-machines" },
-  { label: "Gift Boxes", slug: "gift-boxes" },
+const shopCategories = [
+  { label: "Coffee Beans", href: "/categories/coffee-beans" },
+  { label: "Ground Coffee", href: "/categories/ground-coffee" },
+  { label: "Coffee Capsules", href: "/categories/coffee-capsules" },
+  { label: "Syrups & Flavours", href: "/categories/syrups-flavours" },
+  { label: "Accessories", href: "/categories/accessories" },
+  { label: "Coffee Machines", href: "/categories/coffee-machines" },
+  { label: "Gift Boxes", href: "/categories/gift-boxes" },
 ];
 
 const navigationLinkClass =
@@ -54,14 +54,13 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[#3B2418]/10 bg-[#E8DED4]/80 text-[#3B2418] backdrop-blur-xl">
-      <div className="relative mx-auto flex h-[76px] max-w-[1440px] items-center justify-between gap-3 px-4 sm:gap-4 sm:px-8 lg:px-12">
-
+      <div className="relative mx-auto flex h-19 max-w-360 items-center justify-between gap-3 px-4 sm:gap-4 sm:px-8 lg:px-12">
         {/* Logo */}
         <div
           className={`shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
             searchOpen
               ? "max-md:max-w-0 max-md:opacity-0"
-              : "max-w-[220px] opacity-100"
+              : "max-w-55 opacity-100"
           }`}
         >
           <Logo />
@@ -123,10 +122,10 @@ export function Navbar() {
 
                 <div className="my-1 border-t border-[#3B2418]/10" />
 
-                {categories.map((category) => (
+                {shopCategories.map((category) => (
                   <Link
-                    key={category.slug}
-                    href={`/shop?category=${category.slug}`}
+                    key={category.href}
+                    href={category.href}
                     onClick={() => setShopOpen(false)}
                     className="block rounded-lg px-4 py-2.5 text-sm text-[#665044] transition-colors hover:bg-[#E8DED4] hover:text-[#3B2418]"
                   >
@@ -143,13 +142,12 @@ export function Navbar() {
 
         {/* Right-side actions */}
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-
-          {/* Animated search field, inside the navbar */}
+          {/* Animated search field */}
           <div
             aria-hidden={!searchOpen}
             className={`shrink-0 overflow-hidden transition-[width,opacity] duration-300 ease-in-out ${
               searchOpen
-                ? "w-[130px] opacity-100 sm:w-[180px] lg:w-[220px]"
+                ? "w-32.5 opacity-100 sm:w-45 lg:w-55"
                 : "w-0 opacity-0"
             }`}
           >
@@ -157,7 +155,7 @@ export function Navbar() {
               action="/shop"
               method="get"
               role="search"
-              className="flex h-10 w-full items-center gap-2 rounded-full border border-[#3B2418]/15 bg-[#F8F5F0]/65 px-3 shadow-sm shadow-[#3B2418]/[0.03] backdrop-blur-lg transition-colors duration-300 focus-within:border-[#8A6B55]/60"
+              className="flex h-10 w-full items-center gap-2 rounded-full border border-[#3B2418]/15 bg-[#F8F5F0]/65 px-3 shadow-sm shadow-[#3B2418]/3 backdrop-blur-lg transition-colors duration-300 focus-within:border-[#8A6B55]/60"
             >
               <input
                 ref={searchInputRef}
@@ -219,7 +217,7 @@ export function Navbar() {
             <Icon name="cart" size={18} />
 
             {itemCount > 0 && (
-              <span className="absolute right-0 top-0 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#3B2418] px-1 text-[10px] font-semibold text-white">
+              <span className="absolute right-0 top-0 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-[#3B2418] px-1 text-[10px] font-semibold text-white">
                 {itemCount > 99 ? "99+" : itemCount}
               </span>
             )}
@@ -347,10 +345,10 @@ export function Navbar() {
                   All products
                 </Link>
 
-                {categories.map((category) => (
+                {shopCategories.map((category) => (
                   <Link
-                    key={category.slug}
-                    href={`/shop?category=${category.slug}`}
+                    key={category.href}
+                    href={category.href}
                     onClick={closeMobileMenu}
                     className="block rounded-lg px-3 py-2.5 text-sm text-[#665044] transition-colors hover:bg-[#3B2418]/5"
                   >

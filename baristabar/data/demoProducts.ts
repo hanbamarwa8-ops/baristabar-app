@@ -1,4 +1,3 @@
-
 export interface CatalogProduct {
   id: string;
   name: string;
@@ -202,24 +201,6 @@ export const demoProducts: CatalogProduct[] = [
     20
   ),
   createDemoProduct(
-    "delonghi-essenza-mini",
-    "DeLonghi Essenza Mini",
-    "Accessories",
-    "/02_DeLonghi_Essenza_Mini.png",
-    349,
-    "Une machine compacte pour préparer des expressos.",
-    4
-  ),
-  createDemoProduct(
-    "delonghi-dedica-white",
-    "DeLonghi Dedica White",
-    "Accessories",
-    "/03_DeLonghi_Dedica_White.png",
-    599,
-    "Une machine espresso au design compact.",
-    3
-  ),
-  createDemoProduct(
     "bodum-chambord-french-press",
     "Bodum Chambord French Press",
     "Accessories",
@@ -318,7 +299,27 @@ export const demoProducts: CatalogProduct[] = [
     "Un mug pour emporter le café en déplacement."
   ),
 
-  // 06 — GIFT BOXES
+  // 06 — COFFEE MACHINES
+  createDemoProduct(
+    "delonghi-essenza-mini",
+    "DeLonghi Essenza Mini",
+    "Coffee Machines",
+    "/02_DeLonghi_Essenza_Mini.png",
+    349,
+    "Une machine compacte pour préparer des expressos.",
+    4
+  ),
+  createDemoProduct(
+    "delonghi-dedica-white",
+    "DeLonghi Dedica White",
+    "Coffee Machines",
+    "/03_DeLonghi_Dedica_White.png",
+    599,
+    "Une machine espresso au design compact.",
+    3
+  ),
+
+  // 07 — GIFT BOXES
   createDemoProduct(
     "nespresso-volluto-set",
     "Nespresso Volluto Set",

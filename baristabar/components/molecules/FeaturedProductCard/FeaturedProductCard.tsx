@@ -86,7 +86,7 @@ export function FeaturedProductCard({
         aria-label={`Découvrir ${name}`}
         className="block"
       >
-        <div className="relative aspect-[4/5] overflow-hidden rounded-[14px] bg-[#EAE2D7]">
+        <div className="relative aspect-4/5 overflow-hidden rounded-[14px] bg-[#EAE2D7]">
           <Image
             src={image}
             alt={name}
@@ -114,7 +114,7 @@ export function FeaturedProductCard({
           </p>
         </div>
 
-        <p className="mt-2 line-clamp-3 min-h-[4.5rem] text-sm leading-relaxed text-[#76675D]">
+        <p className="mt-2 line-clamp-3 min-h-18 text-sm leading-relaxed text-[#76675D]">
           {description}
         </p>
 
@@ -127,7 +127,7 @@ export function FeaturedProductCard({
             type="button"
             onClick={handleAddToCart}
             disabled={stock <= 0}
-            className="w-full rounded-full border border-[#3B2418] px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-[#3B2418] transition-colors duration-300 hover:bg-[#3B2418] hover:text-white disabled:cursor-not-allowed disabled:border-stone-300 disabled:text-stone-400 disabled:hover:bg-transparent disabled:hover:text-stone-400"
+            className="w-full rounded-full border border-[#3B2418] px-4 py-3 text-xs font-semibold uppercase tracking-widest text-[#3B2418] transition-colors duration-300 hover:bg-[#3B2418] hover:text-white disabled:cursor-not-allowed disabled:border-stone-300 disabled:text-stone-400 disabled:hover:bg-transparent disabled:hover:text-stone-400"
           >
             {stock <= 0
               ? "Out of stock"

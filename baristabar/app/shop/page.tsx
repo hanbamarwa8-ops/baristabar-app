@@ -1,330 +1,433 @@
-
 import Link from "next/link";
-import { Footer } from "@/components/organisms/Footer/Footer";
 
-import { FeaturedProductCard } from "@/components/molecules/FeaturedProductCard";
 import { Navbar } from "@/components/organisms/Navbar/Navbar";
+import { Footer } from "@/components/organisms/Footer/Footer";
+import { FeaturedProductCard } from "@/components/molecules/FeaturedProductCard";
 import { demoProducts } from "@/data/demoProducts";
-
-export const dynamic = "force-dynamic";
 
 interface Product {
   id: string;
-  name: string;
   slug: string;
-  description: string | null;
-  price: number;
+  name: string;
   category: string;
-  image_url: string | null;
-  stock: number;
+  description?: string | null;
+  price: number;
+  image?: string | null;
+  image_url?: string | null;
+  stock?: number;
 }
 
 interface ProductsApiResponse {
-  success: boolean;
-  data: Product[];
+  success?: boolean;
+  data?: Product[];
 }
 
-interface ShopPageProps {
-  searchParams: Promise<{
-    q?: string | string[];
-    category?: string | string[];
-  }>;
+interface ShopSearchParams {
+  q?: string | string[];
+  category?: string | string[];
+  sort?: string | string[];
 }
 
 const categories = [
-  { label: "Coffee Beans", slug: "coffee-beans" },
-  { label: "Ground Coffee", slug: "ground-coffee" },
-  { label: "Coffee Capsules", slug: "coffee-capsules" },
-  { label: "Syrups & Flavours", slug: "syrups-flavours" },
-  { label: "Accessories", slug: "accessories" },
-  { label: "Coffee Machines", slug: "coffee-machines" },
-  { label: "Gift Boxes", slug: "gift-boxes" },
-];
+  {
+    slug: "coffee-beans",
+    title: "Coffee Beans",
+    aliases: ["beans", "coffee beans", "cafe en grains"],
+  },
+  {
+    slug: "ground-coffee",
+    title: "Ground Coffee",
+    aliases: ["ground coffee", "cafe moulu"],
+  },
+  {
+    slug: "coffee-capsules",
+    title: "Coffee Capsules",
+    aliases: ["coffee capsules", "capsules"],
+  },
+  {
+    slug: "syrups-flavours",
+    title: "Syrups & Flavours",
+    aliases: ["syrups and flavours", "syrups flavours", "sirop", "sirops"],
+  },
+  {
+    slug: "accessories",
+    title: "Accessories",
+    aliases: ["accessories", "accessoires"],
+  },
+  {
+    slug: "coffee-machines",
+    title: "Coffee Machines",
+    aliases: ["coffee machines", "machines a cafe"],
+  },
+  {
+    slug: "gift-boxes",
+    title: "Gift Boxes",
+    aliases: ["gift boxes", "coffrets cadeaux", "coffrets"],
+  },
+] as const;
 
-const categoryAliases: Record<string, string[]> = {
-  "coffee-beans": ["coffee beans", "cafe en grains", "coffee bean"],
-  "ground-coffee": ["ground coffee", "cafe moulu"],
-  "coffee-capsules": ["coffee capsules", "capsules de cafe", "capsules"],
-  "syrups-flavours": [
-    "syrups flavours",
-    "syrups flavors",
-    "syrups",
-    "flavours",
-    "flavors",
-    "sirops aromes",
-  ],
-  accessories: ["accessories", "accessoires"],
-  "coffee-machines": ["coffee machines", "machines a cafe"],
-  "gift-boxes": ["gift boxes", "coffrets cadeaux", "gift box"],
-};
-
-const productImagesBySlug: Record<string, string> = {
-  "ethiopia-yirgacheffe": "/01_Ethiopia_Yirgacheffe_v2.png",
-  "house-espresso-blend": "/02_House_Espresso_Blend_v2.png",
-  "colombia-supremo": "/03_Colombia_Supremo_v2.png",
-  "brazilian-signature-blend": "/05_Brazilian_Signature_Blend_v2.png",
-  "tunisian-coffee-blend": "/06_Tunisian_Coffee_Blend_v2.png",
-};
-
-function normalizeText(value: string | null | undefined): string {
-  return (value ?? "")
+function normalize(value: string): string {
+  return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+    .replace(/&/g, "and")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
 
-function getFirstParam(
-  value: string | string[] | undefined
-): string {
-  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+function getParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
 
-function matchesCategory(
-  productCategory: string,
-  categorySlug: string
-): boolean {
-  const aliases = categoryAliases[categorySlug];
+function findCategory(value: string) {
+  const normalizedValue = normalize(value);
+  const slugValue = value.trim().toLowerCase();
 
-  if (!aliases) return true;
-
-  const normalizedCategory = normalizeText(productCategory);
-
-  return aliases.some((alias) => {
-    const normalizedAlias = normalizeText(alias);
-
-    return (
-      normalizedCategory === normalizedAlias ||
-      normalizedCategory.includes(normalizedAlias)
-    );
-  });
+  return categories.find(
+    (item) =>
+      item.slug === slugValue ||
+      normalize(item.title) === normalizedValue ||
+      item.aliases.some((alias) => normalize(alias) === normalizedValue),
+  );
 }
 
 async function getProducts(): Promise<Product[]> {
+  const localProducts: Product[] = demoProducts.map((product) => ({
+    ...product,
+    price: Number(product.price),
+    image: product.image_url,
+    image_url: product.image_url,
+  }));
+
   const backendUrl = process.env.BACKEND_URL;
 
   if (!backendUrl) {
-    throw new Error("BACKEND_URL est manquante dans .env.local");
+    return localProducts;
   }
 
-  const response = await fetch(`${backendUrl}/api/products`, {
-    cache: "no-store",
-  });
+  try {
+    const response = await fetch(`${backendUrl}/api/products`, {
+      cache: "no-store",
+    });
 
-  if (!response.ok) {
-    throw new Error(`Erreur API : ${response.status}`);
+    if (!response.ok) {
+      console.error("Products API error:", response.status);
+      return localProducts;
+    }
+
+    const result =
+      (await response.json()) as ProductsApiResponse;
+
+    if (!result.success || !Array.isArray(result.data)) {
+      return localProducts;
+    }
+
+    const productsBySlug = new Map<string, Product>();
+
+    // Keep the local catalogue and its prepared product images.
+    for (const product of localProducts) {
+      productsBySlug.set(product.slug, product);
+    }
+
+    // Let the API update matching products with database values.
+    for (const product of result.data) {
+      const localProduct = productsBySlug.get(product.slug);
+
+      productsBySlug.set(product.slug, {
+        ...localProduct,
+        ...product,
+        price: Number(product.price),
+        image:
+          localProduct?.image ??
+          product.image ??
+          product.image_url ??
+          null,
+        image_url:
+          localProduct?.image_url ??
+          localProduct?.image ??
+          product.image_url ??
+          product.image ??
+          null,
+        stock: product.stock ?? localProduct?.stock ?? 0,
+      });
+    }
+
+    return Array.from(productsBySlug.values());
+  } catch (error) {
+    console.error("Unable to load products:", error);
+    return localProducts;
   }
-
-  const result = (await response.json()) as ProductsApiResponse;
-
-  if (!result.success || !Array.isArray(result.data)) {
-    throw new Error("Réponse API invalide");
-  }
-
-  return result.data;
 }
 
 export default async function ShopPage({
   searchParams,
-}: ShopPageProps) {
+}: {
+  searchParams: Promise<ShopSearchParams>;
+}) {
   const params = await searchParams;
-  const query = getFirstParam(params.q).trim();
-  const categorySlug = getFirstParam(params.category).trim();
 
-  let apiProducts: Product[] = [];
-  let apiUnavailable = false;
+  const query = getParam(params.q).trim();
+  const categoryParam = getParam(params.category);
+  const sortParam = getParam(params.sort);
 
-  try {
-    apiProducts = await getProducts();
-  } catch (error) {
-    console.error("Impossible de charger les produits :", error);
-    apiUnavailable = true;
-  }
+  const selectedCategory = findCategory(categoryParam);
+  const allProducts = await getProducts();
 
-  // Start with the demo catalogue.
-  // Products returned by the API replace demo entries with the same slug.
-  // This preserves real Supabase IDs for products already in the database.
-  const productsBySlug = new Map<string, Product>();
+  let products = allProducts.filter((product) => {
+    const matchesCategory =
+      !selectedCategory ||
+      normalize(product.category) === normalize(selectedCategory.title);
 
-  for (const product of demoProducts) {
-    productsBySlug.set(product.slug, product);
-  }
+    const normalizedQuery = normalize(query);
 
-  for (const product of apiProducts) {
-    productsBySlug.set(product.slug, product);
-  }
-
-  const allProducts = Array.from(productsBySlug.values());
-  const normalizedQuery = normalizeText(query);
-
-  const filteredProducts = allProducts.filter((product) => {
-    const searchableText = normalizeText(
+    const searchableText = normalize(
       [
         product.name,
         product.slug,
-        product.description,
         product.category,
-      ].join(" ")
+        product.description ?? "",
+      ].join(" "),
     );
 
     const matchesSearch =
       !normalizedQuery || searchableText.includes(normalizedQuery);
 
-    const matchesSelectedCategory =
-      !categorySlug ||
-      matchesCategory(product.category, categorySlug);
-
-    return matchesSearch && matchesSelectedCategory;
+    return matchesCategory && matchesSearch;
   });
 
-  const selectedCategory = categories.find(
-    (category) => category.slug === categorySlug
-  );
+  if (sortParam === "price-asc") {
+    products = [...products].sort((a, b) => a.price - b.price);
+  } else if (sortParam === "price-desc") {
+    products = [...products].sort((a, b) => b.price - a.price);
+  } else if (sortParam === "name-asc") {
+    products = [...products].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  }
+
+  const allProductsActive = !selectedCategory;
+
+  const pageTitle = selectedCategory?.title ?? "All Products";
 
   return (
     <>
       <Navbar />
 
-      <main className="min-h-screen bg-[#F8F5F0] px-6 py-16 sm:px-10 lg:px-16 lg:py-24">
-        <div className="mx-auto max-w-310">
-          {/* Heading */}
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8A6B55]">
-            Explore our collection
-          </p>
+      <main className="min-h-screen bg-[#FBF8F4]">
+        {/* Shop heading — same editorial style as category pages */}
+        <section className="px-6 pb-8 pt-10 sm:px-10 sm:pb-10 sm:pt-14 lg:px-16 lg:pt-16">
+          <div className="mx-auto max-w-360">
+            <header className="relative border-b border-[#E8DFD5] pb-8 text-center">
+              <div className="mx-auto max-w-3xl">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8A6B55] sm:text-xs">
+                  The BaristaBar selection
+                </p>
 
-          <h1 className="mt-4 font-serif text-4xl text-[#3B2418] sm:text-6xl">
-            Our Coffee Collection
-          </h1>
+                <h1 className="mt-4 font-serif text-4xl leading-[1.08] tracking-tight text-[#3B2418] sm:text-5xl lg:text-6xl">
+                  {pageTitle}
+                </h1>
 
-          <p className="mt-5 max-w-xl text-sm leading-7 text-stone-600 sm:text-base">
-            Discover carefully selected coffees for your everyday ritual.
-          </p>
+                <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-stone-600 sm:text-base">
+                  Discover our collection of carefully selected coffee,
+                  equipment and accessories, created to make every cup
+                  a little more special.
+                </p>
+              </div>
 
-          {/* Temporary catalogue notice */}
-          <p className="mt-5 text-xs leading-5 text-stone-500">
-            Prototype catalogue: some products, prices and stocks are
-            demonstration data and will be synchronized with Supabase later.
-          </p>
-
-          {apiUnavailable && (
-            <p className="mt-4 rounded-lg border border-[#8A6B55]/20 bg-[#E8DED4]/50 p-4 text-sm text-[#665044]">
-              The backend is unavailable. The demonstration catalogue is
-              displayed so you can continue testing the shop interface.
-            </p>
-          )}
-
-          {/* Category filters */}
-          <nav
-            aria-label="Filter products by category"
-            className="mt-8 flex flex-wrap gap-2"
-          >
-            <Link
-              href={
-                query
-                  ? `/shop?q=${encodeURIComponent(query)}`
-                  : "/shop"
-              }
-              className={`rounded-full border px-4 py-2.5 text-xs font-medium transition-colors ${
-                !categorySlug
-                  ? "border-[#3B2418] bg-[#3B2418] text-white"
-                  : "border-[#3B2418]/20 text-[#3B2418] hover:bg-[#E8DED4]"
-              }`}
-            >
-              All products
-            </Link>
-
-            {categories.map((category) => {
-              const selected = categorySlug === category.slug;
-
-              const href = query
-                ? `/shop?category=${category.slug}&q=${encodeURIComponent(query)}`
-                : `/shop?category=${category.slug}`;
-
-              return (
-                <Link
-                  key={category.slug}
-                  href={href}
-                  aria-current={selected ? "page" : undefined}
-                  className={`rounded-full border px-4 py-2.5 text-xs font-medium transition-colors ${
-                    selected
-                      ? "border-[#3B2418] bg-[#3B2418] text-white"
-                      : "border-[#3B2418]/20 text-[#3B2418] hover:bg-[#E8DED4]"
-                  }`}
-                >
-                  {category.label}
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* Results count */}
-          {(query || selectedCategory) && (
-            <div className="mt-7 flex flex-wrap items-center gap-3 text-sm text-stone-600">
-              <span>
-                {filteredProducts.length}{" "}
-                {filteredProducts.length === 1 ? "product" : "products"}
-                {query ? ` matching "${query}"` : ""}
-                {selectedCategory ? ` in ${selectedCategory.label}` : ""}
-              </span>
-
-              <Link
-                href="/shop"
-                className="font-medium text-[#8A6B55] underline underline-offset-4 hover:text-[#3B2418]"
-              >
-                Clear filters
-              </Link>
-            </div>
-          )}
-
-          {/* Product grid */}
-          {filteredProducts.length === 0 ? (
-            <div className="mt-16 rounded-2xl border border-[#3B2418]/10 bg-white/50 px-6 py-16 text-center">
-              <h2 className="font-serif text-2xl text-[#3B2418]">
-                No products found
-              </h2>
-
-              <p className="mt-3 text-sm text-stone-500">
-                Try another search or select a different category.
+              <p className="mt-5 text-sm text-stone-500 sm:absolute sm:bottom-8 sm:right-0 sm:mt-0">
+                {products.length}{" "}
+                {products.length === 1 ? "product" : "products"}
               </p>
+            </header>
+          </div>
+        </section>
 
+        {/* All Products + category navigation */}
+        <section className="px-5 py-5 sm:px-8 lg:px-12">
+          <div className="mx-auto max-w-360">
+            <nav
+              aria-label="Product categories"
+              className="flex gap-3 overflow-x-auto pb-2"
+            >
               <Link
                 href="/shop"
-                className="mt-6 inline-flex rounded-full bg-[#3B2418] px-6 py-3 text-xs font-semibold uppercase tracking-wider text-white transition-colors hover:bg-[#684733]"
+                aria-current={allProductsActive ? "page" : undefined}
+                className={`shrink-0 rounded-full border px-5 py-3 text-sm transition-colors duration-200 ${
+                  allProductsActive
+                    ? "border-[#3B2418] bg-[#3B2418] text-white"
+                    : "border-[#E8DFD5] bg-white text-stone-600 hover:border-[#3B2418] hover:text-[#3B2418]"
+                }`}
               >
-                View all products
+                All Products
               </Link>
-            </div>
-          ) : (
-            <div className="mt-12 grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 xl:gap-x-5">
-              {filteredProducts.map((product, index) => {
-                const image =
-                  productImagesBySlug[product.slug] ??
-                  product.image_url ??
-                  "/coffee-origins.jpg";
+
+              {categories.map((category) => {
+                const isActive =
+                  selectedCategory?.slug === category.slug;
 
                 return (
+                  <Link
+                    key={category.slug}
+                    href={`/categories/${category.slug}`}
+                    aria-current={isActive ? "page" : undefined}
+                    className={`shrink-0 rounded-full border px-5 py-3 text-sm transition-colors duration-200 ${
+                      isActive
+                        ? "border-[#3B2418] bg-[#3B2418] text-white"
+                        : "border-[#E8DFD5] bg-white text-stone-600 hover:border-[#3B2418] hover:text-[#3B2418]"
+                    }`}
+                  >
+                    {category.title}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        </section>
+
+        {/* Search and sorting controls */}
+        <section className="px-6 pb-7 pt-4 sm:px-10 lg:px-16">
+          <div className="mx-auto max-w-360">
+            <form
+              action="/shop"
+              method="get"
+              className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="flex w-full items-center gap-3 rounded-full border border-[#E8DFD5] bg-white px-5 py-3 transition-colors focus-within:border-[#8A6B55] sm:max-w-md">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="18"
+                  height="18"
+                  fill="none"
+                  aria-hidden="true"
+                  className="shrink-0 text-[#8A6B55]"
+                >
+                  <circle
+                    cx="10.8"
+                    cy="10.8"
+                    r="6.8"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  />
+                  <path
+                    d="m16 16 4.2 4.2"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+
+                <input
+                  type="search"
+                  name="q"
+                  defaultValue={query}
+                  placeholder="Search products..."
+                  aria-label="Search products"
+                  className="w-full bg-transparent text-sm text-[#3B2418] outline-none placeholder:text-stone-400"
+                />
+
+                {categoryParam && (
+                  <input
+                    type="hidden"
+                    name="category"
+                    value={categoryParam}
+                  />
+                )}
+
+                {sortParam && (
+                  <input
+                    type="hidden"
+                    name="sort"
+                    value={sortParam}
+                  />
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <label
+                  htmlFor="shop-sort"
+                  className="shrink-0 text-xs font-medium text-stone-500"
+                >
+                  Sort by
+                </label>
+
+                <select
+                  id="shop-sort"
+                  name="sort"
+                  defaultValue={sortParam || "featured"}
+                  className="min-w-0 flex-1 rounded-full border border-[#E8DFD5] bg-white px-4 py-3 text-sm text-[#3B2418] outline-none transition-colors focus:border-[#8A6B55] sm:flex-none"
+                >
+                  <option value="featured">Recommended</option>
+                  <option value="price-asc">Price: low to high</option>
+                  <option value="price-desc">Price: high to low</option>
+                  <option value="name-asc">Name: A–Z</option>
+                </select>
+
+                <button
+                  type="submit"
+                  className="shrink-0 rounded-full bg-[#3B2418] px-5 py-3 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[#604331]"
+                >
+                  Apply
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        {/* Product catalogue */}
+        <section className="px-6 pb-12 pt-3 sm:px-10 sm:pb-16 lg:px-16 lg:pb-20">
+          <div className="mx-auto max-w-360">
+            {products.length > 0 ? (
+              <div className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {products.map((product, index) => (
                   <FeaturedProductCard
-                    key={product.id}
+                    key={product.slug}
                     productId={product.id}
-                    stock={product.stock}
                     name={product.name}
                     category={product.category}
                     description={
                       product.description ??
-                      "Discover our specialty coffee."
+                      "Discover the BaristaBar selection."
                     }
                     price={product.price}
-                    image={image}
-                    href="/shop"
+                    image={
+                      product.image ??
+                      product.image_url ??
+                      "/coffee-origins.jpg"
+                    }
+                    href={`/shop/${product.slug}`}
+                    stock={product.stock ?? 0}
                     loading={index === 0 ? "eager" : "lazy"}
                   />
-                );
-              })}
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-20 text-center">
+                <p className="font-serif text-2xl text-[#3B2418]">
+                  {query
+                    ? "No products found."
+                    : "This collection is coming soon."}
+                </p>
+
+                <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-stone-500">
+                  {query
+                    ? "Try a different search term or browse all our products."
+                    : "We are preparing this selection. Explore the rest of our shop in the meantime."}
+                </p>
+
+                <Link
+                  href="/shop"
+                  className="mt-6 inline-flex items-center gap-2 border-b border-[#3B2418]/40 pb-2 text-sm font-medium text-[#3B2418] transition-colors hover:border-[#3B2418] hover:text-[#8A6B55]"
+                >
+                  View all products
+                  <span aria-hidden="true">→</span>
+                </Link>
+              </div>
+            )}
+          </div>
+        </section>
       </main>
+
       <Footer />
     </>
   );
