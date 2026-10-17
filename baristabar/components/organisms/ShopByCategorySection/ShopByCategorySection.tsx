@@ -78,7 +78,7 @@ export function ShopByCategorySection() {
               key={category.name}
               href="/shop"
               aria-label={`Explore ${category.name}`}
-              className="group relative isolate block aspect-[3/4] overflow-hidden rounded-[10px] bg-[#D8C6B1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#795A46] focus-visible:ring-offset-4"
+              className="group relative isolate block aspect-3/4 overflow-hidden rounded-[10px] bg-[#D8C6B1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#795A46] focus-visible:ring-offset-4"
             >
               {/* Category image */}
               <Image

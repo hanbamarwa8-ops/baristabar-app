@@ -119,10 +119,7 @@ export function FeaturedProductCard({
         </p>
 
         <div className="mt-auto pt-5">
-          <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.16em] text-[#8A6B55]">
-            Specialty Coffee
-          </p>
-
+         
           <button
             type="button"
             onClick={handleAddToCart}
