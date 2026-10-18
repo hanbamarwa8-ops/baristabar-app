@@ -7,7 +7,7 @@ const discoveries = [
         "Explore exceptional beans, unique origins and the stories behind every cup.",
       image: "/coffee-origins.jpg",
       imageAlt: "Grains de café fraîchement torréfiés",
-      href: "/shop",
+      href: "/coffee-origins",
     },
     {
       number: "02",
