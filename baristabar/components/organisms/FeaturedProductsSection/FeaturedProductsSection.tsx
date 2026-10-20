@@ -1,23 +1,11 @@
 import Link from "next/link";
 
 import { FeaturedProductCard } from "@/components/molecules/FeaturedProductCard";
-import { demoProducts } from "@/data/demoProducts";
-
-interface Product {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  price: number;
-  category: string;
-  image_url: string | null;
-  stock: number;
-}
-
-interface ProductsApiResponse {
-  success: boolean;
-  data: Product[];
-}
+import {
+  getProductImage,
+  getProductsFromApi,
+  type Product,
+} from "@/lib/products";
 
 const featuredSlugs = [
   "ethiopia-yirgacheffe",
@@ -27,77 +15,22 @@ const featuredSlugs = [
   "tunisian-coffee-blend",
 ];
 
-const productImagesBySlug: Record<string, string> = {
-  "ethiopia-yirgacheffe": "/01_Ethiopia_Yirgacheffe_v2.png",
-  "house-espresso-blend": "/02_House_Espresso_Blend_v2.png",
-  "colombia-supremo": "/03_Colombia_Supremo_v2.png",
-  "brazilian-signature-blend": "/05_Brazilian_Signature_Blend_v2.png",
-  "tunisian-coffee-blend": "/06_Tunisian_Coffee_Blend_v2.png",
-};
-
-
-
-async function getProducts(): Promise<Product[]> {
-  const backendUrl = process.env.BACKEND_URL;
-
-  if (!backendUrl) {
-    throw new Error("BACKEND_URL est manquante dans .env.local");
-  }
-
-  const response = await fetch(`${backendUrl}/api/products`, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Erreur API : ${response.status}`);
-  }
-
-  const result = (await response.json()) as ProductsApiResponse;
-
-  if (!result.success || !Array.isArray(result.data)) {
-    throw new Error("Réponse API invalide");
-  }
-
-  return result.data;
-}
-
 export async function FeaturedProductsSection() {
   let apiProducts: Product[] = [];
   let hasError = false;
 
   try {
-    apiProducts = await getProducts();
+    apiProducts = await getProductsFromApi();
   } catch (error) {
-    console.error("Impossible de charger les produits :", error);
+    console.error(
+      "Unable to load featured products from the API:",
+      error,
+    );
     hasError = true;
   }
 
-  const productsBySlug = new Map<string, Product>();
-
-  for (const product of demoProducts) {
-    productsBySlug.set(product.slug, {
-      ...product,
-      description: product.description ?? null,
-      image_url: product.image_url,
-    });
-  }
-
-  for (const product of apiProducts) {
-    const demoProduct = productsBySlug.get(product.slug);
-
-    productsBySlug.set(product.slug, {
-      ...demoProduct,
-      ...product,
-      description:
-        product.description ?? demoProduct?.description ?? null,
-      image_url: demoProduct?.image_url ?? product.image_url,
-    });
-  }
-
-  const allProducts = Array.from(productsBySlug.values());
-
   const displayProducts = featuredSlugs
-    .map((slug) => allProducts.find((product) => product.slug === slug))
+    .map((slug) => apiProducts.find((product) => product.slug === slug))
     .filter((product): product is Product => product !== undefined);
 
   return (
@@ -128,42 +61,34 @@ export async function FeaturedProductsSection() {
           </Link>
         </div>
 
-        {hasError && (
-          <p className="mt-5 text-xs text-stone-500">
-            Backend unavailable: displaying demonstration products where needed.
+        {hasError ? (
+          <p role="alert" className="mt-10 text-sm text-stone-500">
+            Featured products are temporarily unavailable.
+            Please check the backend connection and try again.
           </p>
-        )}
-
-        {displayProducts.length === 0 ? (
+        ) : displayProducts.length === 0 ? (
           <p className="mt-10 text-sm text-stone-500">
             Aucun café disponible pour le moment.
           </p>
         ) : (
           <div className="mt-10 grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:mt-14 lg:grid-cols-4 xl:grid-cols-5 xl:gap-x-5">
-            {displayProducts.map((product, index) => {
-              const image =
-                productImagesBySlug[product.slug] ??
-                product.image_url ??
-                "/02_House_Espresso_Blend_v2.png";
-
-              return (
-                <FeaturedProductCard
-                  key={product.id}
-                  productId={product.id}
-                  stock={product.stock}
-                  name={product.name}
-                  category={product.category}
-                  description={
-                    product.description ??
-                    "Discover our specialty coffee."
-                  }
-                  price={product.price}
-                  image={image}
-                  href={`/shop/${product.slug}`}
-                  loading={index === 0 ? "eager" : "lazy"}
-                />
-              );
-            })}
+            {displayProducts.map((product, index) => (
+              <FeaturedProductCard
+                key={product.id}
+                productId={product.id}
+                stock={product.stock}
+                name={product.name}
+                category={product.category}
+                description={
+                  product.description ??
+                  "Discover our specialty coffee."
+                }
+                price={product.price}
+                image={getProductImage(product)}
+                href={`/shop/${product.slug}`}
+                loading={index === 0 ? "eager" : "lazy"}
+              />
+            ))}
           </div>
         )}
       </div>

@@ -72,7 +72,7 @@ export function BeanBoxSection() {
   return (
     <section
       id="beanbox"
-      className="bg-[#F8F5F0] px-6 py-20 sm:px-10 sm:py-24 lg:px-16 lg:py-28"
+      className="scroll-mt-24 bg-[#F8F5F0] px-6 py-20 sm:px-10 sm:py-24 lg:px-16 lg:py-28"
       aria-labelledby="beanbox-heading"
     >
       <div className="mx-auto max-w-310">
@@ -102,8 +102,8 @@ export function BeanBoxSection() {
               key={pack.name}
               className={`flex h-full flex-col overflow-hidden rounded-[10px] border ${
                 pack.featured
-                  ? "border-[#8A6B55]/60 "
-                  : "border-[#E5D9CD] "
+                  ? "border-[#8A6B55]/60"
+                  : "border-[#E5D9CD]"
               }`}
             >
               {/* Pack image */}

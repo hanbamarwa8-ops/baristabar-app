@@ -3,24 +3,11 @@ import Link from "next/link";
 import { Navbar } from "@/components/organisms/Navbar/Navbar";
 import { Footer } from "@/components/organisms/Footer/Footer";
 import { FeaturedProductCard } from "@/components/molecules/FeaturedProductCard";
-import { demoProducts } from "@/data/demoProducts";
-
-interface Product {
-  id: string;
-  slug: string;
-  name: string;
-  category: string;
-  description?: string | null;
-  price: number;
-  image?: string | null;
-  image_url?: string | null;
-  stock?: number;
-}
-
-interface ProductsApiResponse {
-  success?: boolean;
-  data?: Product[];
-}
+import {
+  getProductsFromApi,
+  getProductImage,
+  type Product,
+} from "@/lib/products";
 
 interface ShopSearchParams {
   q?: string | string[];
@@ -85,79 +72,13 @@ function findCategory(value: string) {
   const slugValue = value.trim().toLowerCase();
 
   return categories.find(
-    (item) =>
-      item.slug === slugValue ||
-      normalize(item.title) === normalizedValue ||
-      item.aliases.some((alias) => normalize(alias) === normalizedValue),
+    (category) =>
+      category.slug === slugValue ||
+      normalize(category.title) === normalizedValue ||
+      category.aliases.some(
+        (alias) => normalize(alias) === normalizedValue,
+      ),
   );
-}
-
-async function getProducts(): Promise<Product[]> {
-  const localProducts: Product[] = demoProducts.map((product) => ({
-    ...product,
-    price: Number(product.price),
-    image: product.image_url,
-    image_url: product.image_url,
-  }));
-
-  const backendUrl = process.env.BACKEND_URL;
-
-  if (!backendUrl) {
-    return localProducts;
-  }
-
-  try {
-    const response = await fetch(`${backendUrl}/api/products`, {
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      console.error("Products API error:", response.status);
-      return localProducts;
-    }
-
-    const result =
-      (await response.json()) as ProductsApiResponse;
-
-    if (!result.success || !Array.isArray(result.data)) {
-      return localProducts;
-    }
-
-    const productsBySlug = new Map<string, Product>();
-
-    // Keep the local catalogue and its prepared product images.
-    for (const product of localProducts) {
-      productsBySlug.set(product.slug, product);
-    }
-
-    // Let the API update matching products with database values.
-    for (const product of result.data) {
-      const localProduct = productsBySlug.get(product.slug);
-
-      productsBySlug.set(product.slug, {
-        ...localProduct,
-        ...product,
-        price: Number(product.price),
-        image:
-          localProduct?.image ??
-          product.image ??
-          product.image_url ??
-          null,
-        image_url:
-          localProduct?.image_url ??
-          localProduct?.image ??
-          product.image_url ??
-          product.image ??
-          null,
-        stock: product.stock ?? localProduct?.stock ?? 0,
-      });
-    }
-
-    return Array.from(productsBySlug.values());
-  } catch (error) {
-    console.error("Unable to load products:", error);
-    return localProducts;
-  }
 }
 
 export default async function ShopPage({
@@ -172,14 +93,24 @@ export default async function ShopPage({
   const sortParam = getParam(params.sort);
 
   const selectedCategory = findCategory(categoryParam);
-  const allProducts = await getProducts();
+
+  let allProducts: Product[] = [];
+  let catalogueError = false;
+
+  try {
+    // Supabase supplies the catalogue through the shared Express API.
+    allProducts = await getProductsFromApi();
+  } catch (error) {
+    console.error("Unable to load the product catalogue:", error);
+    catalogueError = true;
+  }
+
+  const normalizedQuery = normalize(query);
 
   let products = allProducts.filter((product) => {
     const matchesCategory =
       !selectedCategory ||
       normalize(product.category) === normalize(selectedCategory.title);
-
-    const normalizedQuery = normalize(query);
 
     const searchableText = normalize(
       [
@@ -191,7 +122,8 @@ export default async function ShopPage({
     );
 
     const matchesSearch =
-      !normalizedQuery || searchableText.includes(normalizedQuery);
+      !normalizedQuery ||
+      searchableText.includes(normalizedQuery);
 
     return matchesCategory && matchesSearch;
   });
@@ -207,7 +139,6 @@ export default async function ShopPage({
   }
 
   const allProductsActive = !selectedCategory;
-
   const pageTitle = selectedCategory?.title ?? "All Products";
 
   return (
@@ -215,7 +146,7 @@ export default async function ShopPage({
       <Navbar />
 
       <main className="min-h-screen bg-[#FBF8F4]">
-        {/* Shop heading — same editorial style as category pages */}
+        {/* Shop heading */}
         <section className="px-6 pb-8 pt-10 sm:px-10 sm:pb-10 sm:pt-14 lg:px-16 lg:pt-16">
           <div className="mx-auto max-w-360">
             <header className="relative border-b border-[#E8DFD5] pb-8 text-center">
@@ -243,7 +174,7 @@ export default async function ShopPage({
           </div>
         </section>
 
-        {/* All Products + category navigation */}
+        {/* Category navigation */}
         <section className="px-5 py-5 sm:px-8 lg:px-12">
           <div className="mx-auto max-w-360">
             <nav
@@ -285,7 +216,7 @@ export default async function ShopPage({
           </div>
         </section>
 
-        {/* Search and sorting controls */}
+        {/* Search and sorting */}
         <section className="px-6 pb-7 pt-4 sm:px-10 lg:px-16">
           <div className="mx-auto max-w-360">
             <form
@@ -333,14 +264,6 @@ export default async function ShopPage({
                     value={categoryParam}
                   />
                 )}
-
-                {sortParam && (
-                  <input
-                    type="hidden"
-                    name="sort"
-                    value={sortParam}
-                  />
-                )}
               </div>
 
               <div className="flex items-center gap-3">
@@ -377,11 +300,20 @@ export default async function ShopPage({
         {/* Product catalogue */}
         <section className="px-6 pb-12 pt-3 sm:px-10 sm:pb-16 lg:px-16 lg:pb-20">
           <div className="mx-auto max-w-360">
-            {products.length > 0 ? (
+            {catalogueError ? (
+              <div className="py-20 text-center" role="alert">
+                <p className="font-serif text-2xl text-[#3B2418]">
+                  The catalogue is temporarily unavailable.
+                </p>
+                <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-stone-500">
+                  Please check that the backend is running and try again.
+                </p>
+              </div>
+            ) : products.length > 0 ? (
               <div className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {products.map((product, index) => (
                   <FeaturedProductCard
-                    key={product.slug}
+                    key={product.id}
                     productId={product.id}
                     name={product.name}
                     category={product.category}
@@ -390,13 +322,9 @@ export default async function ShopPage({
                       "Discover the BaristaBar selection."
                     }
                     price={product.price}
-                    image={
-                      product.image ??
-                      product.image_url ??
-                      "/coffee-origins.jpg"
-                    }
+                    image={getProductImage(product)}
                     href={`/shop/${product.slug}`}
-                    stock={product.stock ?? 0}
+                    stock={product.stock}
                     loading={index === 0 ? "eager" : "lazy"}
                   />
                 ))}
@@ -404,9 +332,7 @@ export default async function ShopPage({
             ) : (
               <div className="py-20 text-center">
                 <p className="font-serif text-2xl text-[#3B2418]">
-                  {query
-                    ? "No products found."
-                    : "This collection is coming soon."}
+                  {query ? "No products found." : "This collection is coming soon."}
                 </p>
 
                 <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-stone-500">

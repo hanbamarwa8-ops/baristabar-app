@@ -4,41 +4,49 @@ import Link from "next/link";
 const categories = [
   {
     name: "Coffee Beans",
+    href: "/categories/coffee-beans",
     image: "/01_Lavazza_Qualita_Oro.png",
     imageAlt: "Café en grains Lavazza Qualità Oro",
   },
   {
     name: "Ground Coffee",
+    href: "/categories/ground-coffee",
     image: "/09_Lavazza_Qualita_Rossa_250g.png",
     imageAlt: "Café moulu Lavazza Qualità Rossa",
   },
   {
     name: "Coffee Capsules",
+    href: "/categories/coffee-capsules",
     image: "/10_Lavazza_Rossa_Capsules.png",
     imageAlt: "Capsules de café Lavazza",
   },
   {
     name: "Syrups & Flavours",
+    href: "/categories/syrups-flavours",
     image: "/06_Monin_Vanilla.png",
     imageAlt: "Sirop Monin à la vanille",
   },
   {
     name: "Accessories",
+    href: "/categories/accessories",
     image: "/06_Coffee_Corner_Accessories.png",
     imageAlt: "Accessoires pour préparer le café",
   },
   {
     name: "Coffee Machines",
+    href: "/categories/coffee-machines",
     image: "/03_DeLonghi_Dedica_White.png",
     imageAlt: "Machine à espresso DeLonghi",
   },
   {
     name: "BeanBox Packs",
+    href: "/#beanbox",
     image: "/13_Lavazza_Espresso_Maestro.png",
     imageAlt: "Sélection de cafés pour les packs BeanBox",
   },
   {
     name: "Gift Boxes",
+    href: "/categories/gift-boxes",
     image: "/12_Nespresso_Volluto_Set.png",
     imageAlt: "Sélection de produits de café à offrir",
   },
@@ -52,8 +60,7 @@ export function ShopByCategorySection() {
       aria-labelledby="shop-category-heading"
     >
       <div className="mx-auto max-w-310">
-        {/* Section heading */}
-        <div>
+        <header>
           <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#795A46] sm:text-xs">
             Shop by category
           </p>
@@ -69,33 +76,31 @@ export function ShopByCategorySection() {
             Discover coffee, equipment and little pleasures
             for every moment of your coffee ritual.
           </p>
-        </div>
+        </header>
 
-        {/* Eight category cards */}
         <div className="mt-10 grid grid-cols-1 gap-5 sm:mt-12 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {categories.map((category) => (
             <Link
               key={category.name}
-              href="/shop"
+              href={category.href}
               aria-label={`Explore ${category.name}`}
               className="group relative isolate block aspect-3/4 overflow-hidden rounded-[10px] bg-[#D8C6B1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#795A46] focus-visible:ring-offset-4"
             >
-              {/* Category image */}
               <Image
-                src={category.image}
-                alt={category.imageAlt}
-                fill
+              src={category.image}
+              alt={category.imageAlt}
+              fill
+              loading={
+                category.image === "/09_Lavazza_Qualita_Rossa_250g.png"
+                ? "eager"
+                : "lazy"}
                 sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, (max-width: 1279px) 33vw, 25vw"
-                className="object-cover object-center transition-transform duration-700 ease-out motion-safe:group-hover:scale-[1.04]"
-              />
-
-              {/* Bottom gradient */}
+                className="object-cover object-center"/>
               <div
                 aria-hidden="true"
                 className="absolute inset-0 bg-linear-to-t from-[#1C100C]/80 via-[#1C100C]/10 to-transparent transition-colors duration-500 group-hover:from-[#1C100C]/90"
               />
 
-              {/* Category title and hover action */}
               <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
                 <h3
                   className="text-[24px] font-normal leading-tight tracking-[-0.02em] text-[#F8F2EB]"
@@ -107,8 +112,8 @@ export function ShopByCategorySection() {
                 </h3>
 
                 <span
-                  className="mt-4 flex translate-y-2 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#F8F2EB] opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100"
                   aria-hidden="true"
+                  className="mt-4 flex translate-y-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#F8F2EB] opacity-100 transition-all duration-300 sm:translate-y-2 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100 sm:group-focus-visible:translate-y-0 sm:group-focus-visible:opacity-100"
                 >
                   Explore
                   <span className="text-base">→</span>

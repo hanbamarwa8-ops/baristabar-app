@@ -73,13 +73,13 @@ export default function CoffeeOriginsPage() {
 
           {/* RIGHT: VIDEO */}
           <div className="order-1 flex justify-center lg:order-2 lg:translate-y-3 lg:justify-end">
-            <div className="relative w-full max-w-[390px]">
+            <div className="relative w-full max-w-97.5">
               {/* Decorative background frame */}
               <div className="absolute -inset-3 -rotate-2 rounded-[2rem] bg-[#E9DED1]" />
 
               <div className="relative overflow-hidden rounded-[1.75rem] border border-white/60 bg-[#261910] shadow-2xl shadow-[#3B2418]/15">
                 <video
-                  className="aspect-[9/13] w-full object-cover"
+                  className="aspect-9/13 w-full object-cover"
                   autoPlay
                   loop
                   muted

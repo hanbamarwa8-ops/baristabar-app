@@ -5,25 +5,13 @@ import { notFound } from "next/navigation";
 import { Navbar } from "@/components/organisms/Navbar/Navbar";
 import { Footer } from "@/components/organisms/Footer/Footer";
 import { ProductDetailActions } from "@/components/molecules/ProductDetailActions/ProductDetailActions";
-import { demoProducts } from "@/data/demoProducts";
+import {
+  getProductImage,
+  getProductsFromApi,
+  type Product,
+} from "@/lib/products";
 
 export const dynamic = "force-dynamic";
-
-interface Product {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  price: number;
-  category: string;
-  image_url: string | null;
-  stock: number;
-}
-
-interface ProductsApiResponse {
-  success: boolean;
-  data: Product[];
-}
 
 interface ProductPageProps {
   params: Promise<{
@@ -48,87 +36,72 @@ function formatPrice(price: number): string {
   return `${price.toFixed(2)} DT`;
 }
 
-async function getApiProducts(): Promise<Product[]> {
-  const backendUrl = process.env.BACKEND_URL;
-
-  if (!backendUrl) {
-    throw new Error("BACKEND_URL est manquante dans .env.local");
-  }
-
-  const response = await fetch(`${backendUrl}/api/products`, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Erreur API : ${response.status}`);
-  }
-
-  const result = (await response.json()) as ProductsApiResponse;
-
-  if (!result.success || !Array.isArray(result.data)) {
-    throw new Error("Réponse API invalide");
-  }
-
-  return result.data;
-}
-
-async function getCatalog(): Promise<Product[]> {
-  const productsBySlug = new Map<string, Product>();
-
-  // Load the demo catalogue first so the page works before
-  
-  for (const product of demoProducts) {
-    productsBySlug.set(product.slug, {
-      ...product,
-      description: product.description ?? null,
-      image_url: product.image_url,
-    });
-  }
-
-  try {
-    const apiProducts = await getApiProducts();
-
-    // Real database data takes priority for IDs, prices and stock.
-    // Keep the local demo image when we have a matching demo entry.
-    for (const product of apiProducts) {
-      const demoProduct = productsBySlug.get(product.slug);
-
-      productsBySlug.set(product.slug, {
-        ...demoProduct,
-        ...product,
-        description:
-          product.description ??
-          demoProduct?.description ??
-          null,
-        image_url:
-          demoProduct?.image_url ??
-          product.image_url,
-      });
-    }
-  } catch (error) {
-    console.error(
-      "Impossible de charger les produits depuis l'API ; utilisation du catalogue de démonstration :",
-      error
-    );
-  }
-
-  return Array.from(productsBySlug.values());
-}
-
 export default async function ProductPage({
   params,
 }: ProductPageProps) {
   const { slug } = await params;
-  const products = await getCatalog();
+
+  let products: Product[] = [];
+  let catalogueError = false;
+
+  try {
+    // Les produits proviennent exclusivement de l'API Express.
+    products = await getProductsFromApi();
+  } catch (error) {
+    console.error(
+      "Unable to load product details from the API:",
+      error,
+    );
+
+    catalogueError = true;
+  }
 
   const product = products.find((item) => item.slug === slug);
 
-  if (!product) {
+  if (!product && !catalogueError) {
     notFound();
   }
 
-  const image = product.image_url ?? "/coffee-origins.jpg";
+  if (!product) {
+    return (
+      <>
+        <Navbar />
+
+        <main className="flex min-h-[60vh] items-center justify-center bg-[#FBF8F4] px-6 py-20">
+          <div className="max-w-xl text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8A6B55]">
+              BaristaBar catalogue
+            </p>
+
+            <h1 className="mt-4 font-serif text-4xl text-[#3B2418]">
+              Product details are temporarily unavailable.
+            </h1>
+
+            <p className="mt-4 text-sm leading-7 text-stone-600">
+              We could not retrieve product data from the shop.
+              Please check your connection and try again.
+            </p>
+
+            <Link
+              href="/shop"
+              className="mt-7 inline-flex rounded-full bg-[#3B2418] px-6 py-3 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[#604331]"
+            >
+              Back to the shop
+            </Link>
+          </div>
+        </main>
+
+        <Footer />
+      </>
+    );
+  }
+
+  const image = getProductImage(product);
   const specialtyCoffee = isBaristaBarProduct(product.slug);
+
+  const description =
+    product.description ??
+    "Discover this product from the BaristaBar collection.";
 
   return (
     <>
@@ -159,7 +132,9 @@ export default async function ProductPage({
 
             <span aria-hidden="true">/</span>
 
-            <span className="text-[#3B2418]">{product.name}</span>
+            <span className="text-[#3B2418]">
+              {product.name}
+            </span>
           </nav>
 
           {/* Product detail */}
@@ -199,14 +174,16 @@ export default async function ProductPage({
               <div className="mt-6 h-px w-full bg-[#3B2418]/15" />
 
               <p className="mt-6 text-sm leading-7 text-stone-600 sm:text-base">
-                {product.description ??
-                  "Discover this product from the BaristaBar collection."}
+                {description}
               </p>
 
               <div className="mt-7 flex items-center gap-2">
                 <span
+                  aria-hidden="true"
                   className={`h-2 w-2 rounded-full ${
-                    product.stock > 0 ? "bg-emerald-600" : "bg-red-600"
+                    product.stock > 0
+                      ? "bg-emerald-600"
+                      : "bg-red-600"
                   }`}
                 />
 
@@ -222,9 +199,7 @@ export default async function ProductPage({
                   id: product.id,
                   name: product.name,
                   category: product.category,
-                  description:
-                    product.description ??
-                    "Discover this product from the BaristaBar collection.",
+                  description,
                   price: product.price,
                   image,
                   stock: product.stock,

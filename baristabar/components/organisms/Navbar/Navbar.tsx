@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { Logo } from "@/components/atoms/Logo";
 import { Icon } from "@/components/atoms/Icon";
@@ -23,6 +24,10 @@ const navigationLinkClass =
 
 export function Navbar() {
   const { itemCount } = useCart();
+  const pathname = usePathname();
+
+  const beanBoxHref =
+    pathname === "/" ? "#beanbox" : "/#beanbox";
 
   const [shopOpen, setShopOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -66,7 +71,7 @@ export function Navbar() {
           <Logo />
         </div>
 
-        {/* Desktop navigation */}
+        {/* Navigation desktop */}
         <nav
           aria-label="Main navigation"
           className={`absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 transition-opacity duration-200 lg:gap-8 md:flex ${
@@ -77,7 +82,7 @@ export function Navbar() {
         >
           <NavItem href="/" label="Home" />
 
-          {/* Shop dropdown */}
+          {/* Menu Shop */}
           <div className="relative flex items-center gap-1">
             <Link href="/shop" className={navigationLinkClass}>
               Shop
@@ -136,13 +141,13 @@ export function Navbar() {
             )}
           </div>
 
-          <NavItem href="/#discovery" label="Discovery" />
-          <NavItem href="/beanbox" label="BeanBox" />
+          <NavItem href="/discovery" label="Discovery" />
+          <NavItem href={beanBoxHref} label="BeanBox" />
         </nav>
 
-        {/* Right-side actions */}
+        {/* Actions à droite */}
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-          {/* Animated search field */}
+          {/* Champ de recherche */}
           <div
             aria-hidden={!searchOpen}
             className={`shrink-0 overflow-hidden transition-[width,opacity] duration-300 ease-in-out ${
@@ -180,7 +185,7 @@ export function Navbar() {
             </form>
           </div>
 
-          {/* Search toggle */}
+          {/* Ouverture/fermeture de la recherche */}
           <button
             type="button"
             onClick={toggleSearch}
@@ -208,7 +213,7 @@ export function Navbar() {
             )}
           </button>
 
-          {/* Cart */}
+          {/* Panier */}
           <Link
             href="/cart"
             aria-label={`Cart, ${itemCount} items`}
@@ -223,7 +228,7 @@ export function Navbar() {
             )}
           </Link>
 
-          {/* Desktop authentication links */}
+          {/* Connexion desktop */}
           <div
             className={`ml-2 hidden items-center gap-4 lg:flex ${
               searchOpen ? "lg:hidden" : ""
@@ -244,7 +249,7 @@ export function Navbar() {
             </Link>
           </div>
 
-          {/* Responsive hamburger */}
+          {/* Bouton du menu mobile */}
           <button
             type="button"
             onClick={() => setMobileMenuOpen((open) => !open)}
@@ -291,7 +296,7 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile menu */}
+      {/* Menu mobile */}
       {mobileMenuOpen && (
         <nav
           aria-label="Mobile navigation"
@@ -306,7 +311,7 @@ export function Navbar() {
               Home
             </Link>
 
-            {/* Mobile Shop dropdown */}
+            {/* Menu Shop mobile */}
             <button
               type="button"
               onClick={() => setMobileShopOpen((open) => !open)}
@@ -359,7 +364,7 @@ export function Navbar() {
             )}
 
             <Link
-              href="/#discovery"
+              href="/discovery"
               onClick={closeMobileMenu}
               className="rounded-lg px-3 py-3 text-sm font-medium text-[#3B2418] hover:bg-[#3B2418]/5"
             >
@@ -367,7 +372,7 @@ export function Navbar() {
             </Link>
 
             <Link
-              href="/beanbox"
+              href={beanBoxHref}
               onClick={closeMobileMenu}
               className="rounded-lg px-3 py-3 text-sm font-medium text-[#3B2418] hover:bg-[#3B2418]/5"
             >

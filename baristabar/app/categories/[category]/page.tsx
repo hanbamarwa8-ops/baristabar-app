@@ -4,24 +4,11 @@ import { notFound } from "next/navigation";
 import { Navbar } from "@/components/organisms/Navbar/Navbar";
 import { Footer } from "@/components/organisms/Footer/Footer";
 import { FeaturedProductCard } from "@/components/molecules/FeaturedProductCard";
-import { demoProducts } from "@/data/demoProducts";
-
-interface Product {
-  id: string;
-  slug: string;
-  name: string;
-  category: string;
-  description?: string | null;
-  price: number;
-  image?: string | null;
-  image_url?: string | null;
-  stock?: number;
-}
-
-interface ProductsApiResponse {
-  success?: boolean;
-  data?: Product[];
-}
+import {
+  getProductImage,
+  getProductsFromApi,
+  type Product,
+} from "@/lib/products";
 
 const categories = {
   "coffee-beans": {
@@ -73,80 +60,6 @@ function normalize(value: string): string {
     .trim();
 }
 
-async function getApiProducts(): Promise<Product[]> {
-  const backendUrl = process.env.BACKEND_URL;
-
-  if (!backendUrl) {
-    return [];
-  }
-
-  try {
-    const response = await fetch(`${backendUrl}/api/products`, {
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      console.error("Products API error:", response.status);
-      return [];
-    }
-
-    const result =
-      (await response.json()) as ProductsApiResponse;
-
-    if (!result.success || !Array.isArray(result.data)) {
-      return [];
-    }
-
-    return result.data;
-  } catch (error) {
-    console.error("Unable to load API products:", error);
-    return [];
-  }
-}
-
-async function getProducts(): Promise<Product[]> {
-  const localProducts = demoProducts as unknown as Product[];
-  const apiProducts = await getApiProducts();
-
-  const productsBySlug = new Map<string, Product>();
-
-  // Add demo products first and preserve their prepared images.
-  for (const product of localProducts) {
-    productsBySlug.set(product.slug, {
-      ...product,
-      price: Number(product.price),
-      image: product.image ?? product.image_url ?? null,
-      image_url: product.image_url ?? product.image ?? null,
-      stock: product.stock ?? 99,
-    });
-  }
-
-  // Backend data takes priority for matching product slugs.
-  for (const product of apiProducts) {
-    const localProduct = productsBySlug.get(product.slug);
-
-    productsBySlug.set(product.slug, {
-      ...localProduct,
-      ...product,
-      price: Number(product.price),
-      image:
-        localProduct?.image ??
-        product.image ??
-        product.image_url ??
-        null,
-      image_url:
-        localProduct?.image_url ??
-        localProduct?.image ??
-        product.image_url ??
-        product.image ??
-        null,
-      stock: product.stock ?? localProduct?.stock ?? 0,
-    });
-  }
-
-  return Array.from(productsBySlug.values());
-}
-
 export default async function CategoryPage({
   params,
 }: {
@@ -159,18 +72,27 @@ export default async function CategoryPage({
   }
 
   const categoryInfo = categories[category as CategorySlug];
-  const allProducts = await getProducts();
+
+  let allProducts: Product[] = [];
+  let catalogueError = false;
+
+  try {
+    allProducts = await getProductsFromApi();
+  } catch (error) {
+    console.error("Unable to load category products:", error);
+    catalogueError = true;
+  }
 
   const products = allProducts.filter(
     (product) =>
-      normalize(product.category) === normalize(categoryInfo.title)
+      normalize(product.category) === normalize(categoryInfo.title),
   );
 
   const categoryLinks = Object.entries(categories).map(
     ([slug, info]) => ({
       slug,
       title: info.title,
-    })
+    }),
   );
 
   return (
@@ -186,8 +108,9 @@ export default async function CategoryPage({
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8A6B55] sm:text-xs">
                   The BaristaBar selection
                 </p>
+
                 <h1 className="mt-4 font-serif text-4xl leading-[1.08] tracking-tight text-[#3B2418] sm:text-5xl lg:text-6xl">
-                    {categoryInfo.title}
+                  {categoryInfo.title}
                 </h1>
 
                 <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-stone-600 sm:text-base">
@@ -210,7 +133,6 @@ export default async function CategoryPage({
               aria-label="Product categories"
               className="flex gap-3 overflow-x-auto pb-2"
             >
-              {/* All Products is the first navigation item */}
               <Link
                 href="/shop"
                 className="shrink-0 rounded-full border border-[#E8DFD5] bg-white px-5 py-3 text-sm text-stone-600 transition-colors hover:border-[#3B2418] hover:text-[#3B2418]"
@@ -243,11 +165,30 @@ export default async function CategoryPage({
         {/* Products */}
         <section className="px-6 pb-12 pt-5 sm:px-10 sm:pb-16 lg:px-16 lg:pb-20">
           <div className="mx-auto max-w-360">
-            {products.length > 0 ? (
+            {catalogueError ? (
+              <div className="py-20 text-center" role="alert">
+                <p className="font-serif text-2xl text-[#3B2418]">
+                  This collection is temporarily unavailable.
+                </p>
+
+                <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-stone-500">
+                  We could not load this collection. Please check your
+                  connection and try again.
+                </p>
+
+                <Link
+                  href={`/categories/${category}`}
+                  className="mt-6 inline-flex items-center gap-2 border-b border-[#3B2418]/40 pb-2 text-sm font-medium text-[#3B2418] transition-colors hover:border-[#3B2418]"
+                >
+                  Try again
+                  <span aria-hidden="true">→</span>
+                </Link>
+              </div>
+            ) : products.length > 0 ? (
               <div className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {products.map((product, index) => (
                   <FeaturedProductCard
-                    key={product.slug}
+                    key={product.id}
                     productId={product.id}
                     name={product.name}
                     category={product.category}
@@ -256,13 +197,9 @@ export default async function CategoryPage({
                       "Discover the BaristaBar selection."
                     }
                     price={product.price}
-                    image={
-                      product.image ??
-                      product.image_url ??
-                      "/coffee-origins.jpg"
-                    }
+                    image={getProductImage(product)}
                     href={`/shop/${product.slug}`}
-                    stock={product.stock ?? 0}
+                    stock={product.stock}
                     loading={index === 0 ? "eager" : "lazy"}
                   />
                 ))}
