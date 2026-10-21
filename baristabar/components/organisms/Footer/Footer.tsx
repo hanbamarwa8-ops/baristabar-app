@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -8,7 +9,7 @@ import { Logo } from "@/components/atoms/Logo";
 
 const footerLinks = [
   { href: "/shop", label: "Shop" },
-  { href: "/discovery", label: "Discovery" },
+  { href: "/#discover", label: "Discovery" },
   { href: "/recipes", label: "Recipes" },
 ];
 

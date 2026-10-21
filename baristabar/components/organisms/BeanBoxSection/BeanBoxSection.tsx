@@ -3,67 +3,63 @@ import Link from "next/link";
 
 const beanBoxPacks = [
   {
+    slug: "discovery-box",
     name: "Discovery Box",
-    label: "One-time purchase",
-    price: "99",
-    period: "DT",
+    label: "Fixed selection",
     description:
-      "Your first step into the world of specialty coffee.",
+      "Discover three of our Featured coffees in one carefully curated box.",
     details: [
-      "3 coffees to discover",
-      "V60 dripper and filters",
-      "Coffee discovery booklet",
+      "Ethiopia Yirgacheffe",
+      "House Espresso Blend",
+      "Colombia Supremo",
     ],
-    image: "/machine-ChP83Bzd.jpg",
-    imageAlt: "Café de spécialité pour découvrir de nouvelles saveurs",
+    image: "/discovery-box-espresso-v2.jpg",
+    imageAlt: "Creamy coffee swirls in warm chocolate and caramel tones",
     featured: true,
   },
   {
+    slug: "classic-box",
     name: "Classic Box",
-    label: "Monthly subscription",
-    price: "29",
-    period: "/ month",
+    label: "Your everyday ritual",
     description:
-      "A carefully selected coffee for your everyday ritual.",
+      "Choose the Featured coffee that best fits your everyday coffee ritual.",
     details: [
-      "1 coffee of 250 g each month",
-      "Fresh coffee selection",
-      "Delivery included",
+      "Choose one Featured coffee",
+      "A simple, personalised selection",
+      "One complete box per purchase",
     ],
     image: "/classic2.jpg",
-    imageAlt: "Café espresso pour accompagner le quotidien",
+    imageAlt: "Classic Box coffee selection",
     featured: false,
   },
   {
+    slug: "barista-box",
     name: "Barista Box",
-    label: "Monthly subscription",
-    price: "49",
-    period: "/ month",
+    label: "Make it your own",
     description:
-      "Explore new recipes and improve your barista skills at home.",
+      "Build a box around your favourite Featured coffee and an available coffee accessory.",
     details: [
-      "1 coffee of 250 g",
-      "Accessory or flavour",
-      "Step-by-step recipe cards",
+      "Choose one Featured coffee",
+      "Choose an available accessory",
+      "One complete personalised box",
     ],
     image: "/brewing-methods.jpg",
-    imageAlt: "Différentes méthodes de préparation du café",
+    imageAlt: "Coffee brewing methods",
     featured: false,
   },
   {
+    slug: "premium-box",
     name: "Premium Box",
-    label: "Monthly subscription",
-    price: "79",
-    period: "/ month",
+    label: "The complete experience",
     description:
-      "A complete experience for passionate coffee lovers.",
+      "Create a richer coffee experience with two different Featured coffees and an accessory or flavour.",
     details: [
-      "2 specialty coffees",
-      "1 accessory or flavour",
-      "Exclusive coffee content",
+      "Choose two different Featured coffees",
+      "Choose an accessory or flavour",
+      "One complete personalised box",
     ],
     image: "/coffee-origins.jpg",
-    imageAlt: "Découverte des origines du café",
+    imageAlt: "Premium coffee discovery",
     featured: false,
   },
 ];
@@ -89,9 +85,19 @@ export function BeanBoxSection() {
             Meet your BeanBox.
           </h2>
 
-          <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-stone-600 sm:text-base">
-            From your first discovery to your daily ritual,
-            find the box that fits your coffee journey.
+          <p
+            className={
+              "mx-auto mt-5 max-w-xl text-sm leading-7 text-stone-600 sm:text-base"
+            }
+          >
+            From your first discovery to your daily ritual, find the box
+            that fits your coffee journey. Personalise your selection and
+            add the complete box to your bag in one step.
+          </p>
+
+          <p className="mt-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#604331]">
+            <span aria-hidden="true">✓</span>
+            Free delivery throughout Tunisia
           </p>
         </div>
 
@@ -99,7 +105,7 @@ export function BeanBoxSection() {
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:mt-16 lg:grid-cols-4">
           {beanBoxPacks.map((pack) => (
             <article
-              key={pack.name}
+              key={pack.slug}
               className={`flex h-full flex-col overflow-hidden rounded-[10px] border ${
                 pack.featured
                   ? "border-[#8A6B55]/60"
@@ -132,16 +138,6 @@ export function BeanBoxSection() {
                   {pack.description}
                 </p>
 
-                <div className="mt-5 flex items-baseline gap-2">
-                  <span className="font-serif text-3xl text-[#3B2418]">
-                    {pack.price}
-                  </span>
-
-                  <span className="text-sm text-stone-500">
-                    {pack.period}
-                  </span>
-                </div>
-
                 <div className="my-5 h-px bg-[#E9DED3]" />
 
                 <ul className="space-y-3">
@@ -162,7 +158,7 @@ export function BeanBoxSection() {
                 </ul>
 
                 <Link
-                  href="/shop"
+                  href={`/beanbox/${pack.slug}`}
                   className="mt-7 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[5px] border border-[#3B2418] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#3B2418] transition-colors hover:bg-[#3B2418] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A6B55] focus-visible:ring-offset-2"
                 >
                   Discover the box
@@ -174,9 +170,20 @@ export function BeanBoxSection() {
         </div>
 
         <p className="mt-6 text-center text-xs leading-5 text-stone-500">
-          Prices are indicative and displayed in Tunisian dinars (DT).
-          Monthly subscriptions can be paused or cancelled.
+          One-time purchase. Final price is calculated from the products
+          included in your selected box. Free delivery throughout Tunisia.
         </p>
+
+        {/* Discovery access */}
+        <div className="mt-5 text-center">
+          <Link
+            href="/discovery"
+            className="inline-flex items-center gap-2 border-b border-[#3B2418]/40 pb-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#3B2418] transition-colors hover:border-[#3B2418] hover:text-[#8A6B55] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A6B55] focus-visible:ring-offset-4"
+          >
+            Explore Discovery
+            <span aria-hidden="true">→</span>
+          </Link>
+        </div>
       </div>
     </section>
   );

@@ -20,8 +20,28 @@ export interface CartProduct {
   stock: number;
 }
 
+export interface CartBoxContent {
+  id: string;
+  slug: string;
+  name: string;
+  quantityPerBox: number;
+  unitPrice: number;
+  image: string;
+}
+
+export interface CartBoxProduct extends CartProduct {
+  kind: "beanbox";
+  boxSlug: string;
+  configurationLabel: string;
+  contents: CartBoxContent[];
+}
+
 export interface CartItem extends CartProduct {
   quantity: number;
+  kind?: "product" | "beanbox";
+  boxSlug?: string;
+  configurationLabel?: string;
+  contents?: CartBoxContent[];
 }
 
 interface CartContextValue {
@@ -30,6 +50,7 @@ interface CartContextValue {
   subtotal: number;
   isHydrated: boolean;
   addToCart: (product: CartProduct) => void;
+  addBoxToCart: (box: CartBoxProduct) => void;
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
@@ -38,69 +59,108 @@ interface CartContextValue {
 const STORAGE_KEY = "baristabar-cart";
 
 const CartContext = createContext<CartContextValue | undefined>(
-  undefined
+  undefined,
 );
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isValidBoxContent(value: unknown): value is CartBoxContent {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value.id === "string" &&
+    typeof value.slug === "string" &&
+    typeof value.name === "string" &&
+    typeof value.image === "string" &&
+    typeof value.quantityPerBox === "number" &&
+    Number.isInteger(value.quantityPerBox) &&
+    value.quantityPerBox > 0 &&
+    typeof value.unitPrice === "number" &&
+    Number.isFinite(value.unitPrice) &&
+    value.unitPrice >= 0
+  );
+}
+
+function isValidCartItem(value: unknown): value is CartItem {
+  if (!isRecord(value)) return false;
+
+  const commonFieldsAreValid =
+    typeof value.id === "string" &&
+    typeof value.name === "string" &&
+    typeof value.category === "string" &&
+    typeof value.description === "string" &&
+    typeof value.image === "string" &&
+    typeof value.price === "number" &&
+    Number.isFinite(value.price) &&
+    value.price >= 0 &&
+    typeof value.stock === "number" &&
+    Number.isInteger(value.stock) &&
+    value.stock >= 0 &&
+    typeof value.quantity === "number" &&
+    Number.isInteger(value.quantity) &&
+    value.quantity > 0 &&
+    value.quantity <= value.stock;
+
+  if (!commonFieldsAreValid) return false;
+
+  if (
+    value.kind !== undefined &&
+    value.kind !== "product" &&
+    value.kind !== "beanbox"
+  ) {
+    return false;
+  }
+
+  if (value.kind === "beanbox") {
+    return (
+      typeof value.boxSlug === "string" &&
+      typeof value.configurationLabel === "string" &&
+      Array.isArray(value.contents) &&
+      value.contents.length > 0 &&
+      value.contents.every(isValidBoxContent)
+    );
+  }
+
+  return true;
+}
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
-  // Restore the cart from localStorage on the client.
+  // Restore the saved cart on the client.
   useEffect(() => {
     let cancelled = false;
+    let restoredItems: CartItem[] = [];
 
-    const restoreCart = () => {
-      let restoredItems: CartItem[] = [];
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
 
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed: unknown = JSON.parse(saved);
 
-        if (saved) {
-          const parsed: unknown = JSON.parse(saved);
-
-          if (Array.isArray(parsed)) {
-            restoredItems = parsed.filter(
-              (item): item is CartItem =>
-                item !== null &&
-                typeof item === "object" &&
-                typeof item.id === "string" &&
-                typeof item.name === "string" &&
-                typeof item.category === "string" &&
-                typeof item.description === "string" &&
-                typeof item.image === "string" &&
-                typeof item.price === "number" &&
-                Number.isFinite(item.price) &&
-                item.price >= 0 &&
-                typeof item.stock === "number" &&
-                Number.isFinite(item.stock) &&
-                item.stock >= 0 &&
-                Number.isInteger(item.stock) &&
-                typeof item.quantity === "number" &&
-                Number.isInteger(item.quantity) &&
-                item.quantity > 0 &&
-                item.quantity <= item.stock
-            );
-          }
+        if (Array.isArray(parsed)) {
+          restoredItems = parsed.filter(isValidCartItem);
         }
-      } catch {
-        console.error("Impossible de restaurer le panier.");
       }
+    } catch {
+      console.error("Impossible de restaurer le panier.");
+    }
 
-      queueMicrotask(() => {
-        if (cancelled) return;
-
-        setItems(restoredItems);
-        setHydrated(true);
-      });
-    };
-
-    restoreCart();
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setItems(restoredItems);
+      setHydrated(true);
+    });
 
     return () => {
       cancelled = true;
     };
   }, []);
 
+  // Save products and configured boxes together.
   useEffect(() => {
     if (!hydrated) return;
 
@@ -111,7 +171,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [items, hydrated]);
 
-  // Add a product or increase its quantity.
+  // Existing behaviour for individual products.
   const addToCart = useCallback((product: CartProduct) => {
     if (
       !product.id ||
@@ -125,7 +185,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     setItems((currentItems) => {
       const existingItem = currentItems.find(
-        (item) => item.id === product.id
+        (item) => item.id === product.id && item.kind !== "beanbox",
       );
 
       if (existingItem) {
@@ -134,16 +194,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
 
         return currentItems.map((item) =>
-          item.id === product.id
+          item.id === product.id && item.kind !== "beanbox"
             ? {
                 ...item,
                 ...product,
+                kind: "product",
                 quantity: Math.min(
                   item.quantity + 1,
-                  product.stock
+                  product.stock,
                 ),
               }
-            : item
+            : item,
         );
       }
 
@@ -151,6 +212,57 @@ export function CartProvider({ children }: { children: ReactNode }) {
         ...currentItems,
         {
           ...product,
+          kind: "product",
+          quantity: 1,
+        },
+      ];
+    });
+  }, []);
+
+  // A configured BeanBox is one cart line, not separate product lines.
+  const addBoxToCart = useCallback((box: CartBoxProduct) => {
+    const validBox =
+      Boolean(box.id.trim()) &&
+      Boolean(box.boxSlug.trim()) &&
+      Boolean(box.name.trim()) &&
+      Boolean(box.configurationLabel.trim()) &&
+      Number.isFinite(box.price) &&
+      box.price >= 0 &&
+      Number.isInteger(box.stock) &&
+      box.stock > 0 &&
+      Array.isArray(box.contents) &&
+      box.contents.length > 0 &&
+      box.contents.every(isValidBoxContent);
+
+    if (!validBox) return;
+
+    setItems((currentItems) => {
+      const existingItem = currentItems.find(
+        (item) => item.id === box.id && item.kind === "beanbox",
+      );
+
+      if (existingItem) {
+        if (existingItem.quantity >= box.stock) {
+          return currentItems;
+        }
+
+        return currentItems.map((item) =>
+          item.id === box.id && item.kind === "beanbox"
+            ? {
+                ...box,
+                quantity: Math.min(
+                  item.quantity + 1,
+                  box.stock,
+                ),
+              }
+            : item,
+        );
+      }
+
+      return [
+        ...currentItems,
+        {
+          ...box,
           quantity: 1,
         },
       ];
@@ -159,7 +271,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const removeFromCart = useCallback((id: string) => {
     setItems((currentItems) =>
-      currentItems.filter((item) => item.id !== id)
+      currentItems.filter((item) => item.id !== id),
     );
   }, []);
 
@@ -170,7 +282,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setItems((currentItems) =>
         currentItems.flatMap((item) => {
           if (item.id !== id) return [item];
-
           if (quantity <= 0) return [];
 
           return [
@@ -178,28 +289,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
               ...item,
               quantity: Math.min(
                 Math.floor(quantity),
-                item.stock
+                item.stock,
               ),
             },
           ];
-        })
+        }),
       );
     },
-    []
+    [],
   );
 
   const clearCart = useCallback(() => {
     setItems([]);
   }, []);
 
+  // A box counts as one item regardless of its internal contents.
   const itemCount = items.reduce(
     (total, item) => total + item.quantity,
-    0
+    0,
   );
 
   const subtotal = items.reduce(
     (total, item) => total + item.price * item.quantity,
-    0
+    0,
   );
 
   const value = useMemo<CartContextValue>(
@@ -209,6 +321,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       subtotal,
       isHydrated: hydrated,
       addToCart,
+      addBoxToCart,
       removeFromCart,
       updateQuantity,
       clearCart,
@@ -219,10 +332,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       subtotal,
       hydrated,
       addToCart,
+      addBoxToCart,
       removeFromCart,
       updateQuantity,
       clearCart,
-    ]
+    ],
   );
 
   return (
@@ -237,7 +351,7 @@ export function useCart(): CartContextValue {
 
   if (context === undefined) {
     throw new Error(
-      "useCart doit être utilisé à l'intérieur de CartProvider."
+      "useCart doit être utilisé à l'intérieur de CartProvider.",
     );
   }
 

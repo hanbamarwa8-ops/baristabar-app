@@ -28,6 +28,8 @@ export function Navbar() {
 
   const beanBoxHref =
     pathname === "/" ? "#beanbox" : "/#beanbox";
+  const discoveryHref =
+  pathname === "/" ? "#discover" : "/#discover";
 
   const [shopOpen, setShopOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -141,7 +143,7 @@ export function Navbar() {
             )}
           </div>
 
-          <NavItem href="/discovery" label="Discovery" />
+          <NavItem href={discoveryHref} label="Discovery" />
           <NavItem href={beanBoxHref} label="BeanBox" />
         </nav>
 
@@ -364,8 +366,8 @@ export function Navbar() {
             )}
 
             <Link
-              href="/discovery"
-              onClick={closeMobileMenu}
+               href={discoveryHref}
+               onClick={closeMobileMenu}
               className="rounded-lg px-3 py-3 text-sm font-medium text-[#3B2418] hover:bg-[#3B2418]/5"
             >
               Discovery

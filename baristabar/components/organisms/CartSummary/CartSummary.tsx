@@ -1,4 +1,3 @@
-
 interface CartSummaryProps {
   itemCount: number;
   subtotal: number;
@@ -20,16 +19,14 @@ export function CartSummary({
       </div>
 
       <div className="mt-4 flex justify-between gap-4 border-t border-stone-200 pt-4">
-        <span className="font-medium text-[#3B2418]">
-          Subtotal
-        </span>
+        <span className="font-medium text-[#3B2418]">Subtotal</span>
         <span className="font-semibold text-[#3B2418]">
           {subtotal.toFixed(2)} DT
         </span>
       </div>
 
       <p className="mt-4 text-xs leading-relaxed text-stone-500">
-        Delivery costs will be confirmed before your order is placed.
+        Free delivery throughout Tunisia. No delivery fee.
       </p>
 
       <p className="mt-6 rounded-lg border border-stone-200 bg-white p-3 text-sm text-stone-600">
