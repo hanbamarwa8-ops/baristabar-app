@@ -21,7 +21,7 @@ export function CartSummary({
       <div className="mt-4 flex justify-between gap-4 border-t border-stone-200 pt-4">
         <span className="font-medium text-[#3B2418]">Subtotal</span>
         <span className="font-semibold text-[#3B2418]">
-          {subtotal.toFixed(2)} DT
+          {subtotal.toFixed(3)} DT
         </span>
       </div>
 

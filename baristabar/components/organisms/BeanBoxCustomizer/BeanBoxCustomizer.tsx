@@ -498,8 +498,8 @@ export function BeanBoxCustomizer({
 
               <p className="mt-4 text-xs leading-5 text-stone-500">
                 Total based on the current catalogue prices of the
-                included products. Delivery is not included. No bundle
-                discount or packaging fee has been assumed.
+                included products. Free delivery throughout Tunisia. No delivery
+                fee, bundle discount or packaging fee has been added.
               </p>
 
               {!selectionComplete && (

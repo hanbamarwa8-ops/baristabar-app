@@ -38,7 +38,7 @@ export function CartItemRow({
         </h3>
 
         <p className="mt-1 text-sm text-stone-500">
-          {item.price.toFixed(2)} DT / {isBeanBox ? "box" : "unit"}
+          {item.price.toFixed(3)} DT / {isBeanBox ? "box" : "unit"}
         </p>
 
         {isBeanBox && item.contents && (
@@ -104,7 +104,7 @@ export function CartItemRow({
           </div>
 
           <p className="font-semibold text-[#3B2418]">
-            {(item.price * item.quantity).toFixed(2)} DT
+            {(item.price * item.quantity).toFixed(3)} DT
           </p>
         </div>
 
