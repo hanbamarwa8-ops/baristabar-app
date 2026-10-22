@@ -12,6 +12,7 @@ interface ProductRow {
   created_at: Date;
 }
 
+
 export async function findActiveProducts() {
   const result = await pool.query<ProductRow>(`
     SELECT

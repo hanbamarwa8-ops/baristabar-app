@@ -1,10 +1,7 @@
-import type { Request, Response } from "express";
+﻿import type { Request, Response } from "express";
 import { findActiveProducts } from "../repositories/products.repository.js";
 
-export async function getProducts(
-  _req: Request,
-  res: Response
-) {
+export async function getProducts(_req: Request, res: Response) {
   try {
     const products = await findActiveProducts();
 
