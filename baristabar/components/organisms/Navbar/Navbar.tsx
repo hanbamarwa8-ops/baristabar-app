@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -7,7 +8,9 @@ import { usePathname } from "next/navigation";
 import { Logo } from "@/components/atoms/Logo";
 import { Icon } from "@/components/atoms/Icon";
 import { NavItem } from "@/components/molecules/NavItem";
+import { LogoutButton } from "@/components/molecules/LogoutButton/LogoutButton";
 import { useCart } from "@/components/providers/CartProvider";
+import { createClient } from "@/lib/supabase/client";
 
 const shopCategories = [
   { label: "Coffee Beans", href: "/categories/coffee-beans" },
@@ -26,10 +29,8 @@ export function Navbar() {
   const { itemCount } = useCart();
   const pathname = usePathname();
 
-  const beanBoxHref =
-    pathname === "/" ? "#beanbox" : "/#beanbox";
-  const discoveryHref =
-  pathname === "/" ? "#discover" : "/#discover";
+  const beanBoxHref = pathname === "/" ? "#beanbox" : "/#beanbox";
+  const discoveryHref = pathname === "/" ? "#discover" : "/#discover";
 
   const [shopOpen, setShopOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -37,8 +38,54 @@ export function Navbar() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Synchronise l'état de connexion avec Supabase.
+  useEffect(() => {
+    const supabase = createClient();
+    let mounted = true;
+
+    async function loadSession() {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+
+      if (!error) {
+        setIsAuthenticated(Boolean(data.session?.user));
+      }
+
+      setAuthLoading(false);
+    }
+
+    void loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+
+      const authenticated = Boolean(session?.user);
+
+      setIsAuthenticated(authenticated);
+      setAuthLoading(false);
+
+      // Ferme le menu mobile après une déconnexion.
+      if (!authenticated) {
+        setMobileMenuOpen(false);
+        setMobileShopOpen(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Place automatiquement le curseur dans la recherche.
   useEffect(() => {
     if (searchOpen) {
       searchInputRef.current?.focus();
@@ -230,26 +277,34 @@ export function Navbar() {
             )}
           </Link>
 
-          {/* Connexion desktop */}
-          <div
-            className={`ml-2 hidden items-center gap-4 lg:flex ${
-              searchOpen ? "lg:hidden" : ""
-            }`}
-          >
-            <Link
-              href="/sign-in"
-              className="text-xs font-semibold uppercase tracking-[0.08em] text-[#3B2418] transition-colors hover:text-[#8A6B55]"
+          {/* Authentification desktop */}
+          {!authLoading && (
+            <div
+              className={`ml-2 hidden items-center gap-4 lg:flex ${
+                searchOpen ? "lg:hidden" : ""
+              }`}
             >
-              Sign in
-            </Link>
+              {isAuthenticated ? (
+                <LogoutButton />
+              ) : (
+                <>
+                  <Link
+                    href="/sign-in"
+                    className="text-xs font-semibold uppercase tracking-[0.08em] text-[#3B2418] transition-colors hover:text-[#8A6B55]"
+                  >
+                    Sign in
+                  </Link>
 
-            <Link
-              href="/sign-up"
-              className="rounded-full border border-[#3B2418] px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.08em] text-[#3B2418] transition-colors hover:bg-[#3B2418] hover:text-white"
-            >
-              Sign up
-            </Link>
-          </div>
+                  <Link
+                    href="/sign-up"
+                    className="rounded-full border border-[#3B2418] px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.08em] text-[#3B2418] transition-colors hover:bg-[#3B2418] hover:text-white"
+                  >
+                    Sign up
+                  </Link>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Bouton du menu mobile */}
           <button
@@ -366,8 +421,8 @@ export function Navbar() {
             )}
 
             <Link
-               href={discoveryHref}
-               onClick={closeMobileMenu}
+              href={discoveryHref}
+              onClick={closeMobileMenu}
               className="rounded-lg px-3 py-3 text-sm font-medium text-[#3B2418] hover:bg-[#3B2418]/5"
             >
               Discovery
@@ -391,23 +446,31 @@ export function Navbar() {
               Cart {itemCount > 0 && `(${itemCount})`}
             </Link>
 
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <Link
-                href="/sign-in"
-                onClick={closeMobileMenu}
-                className="rounded-full border border-[#3B2418]/50 px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#3B2418] hover:bg-[#3B2418]/5"
-              >
-                Sign in
-              </Link>
+            {/* Authentification mobile */}
+            {!authLoading &&
+              (isAuthenticated ? (
+                <div className="px-3 py-2">
+                  <LogoutButton />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <Link
+                    href="/sign-in"
+                    onClick={closeMobileMenu}
+                    className="rounded-full border border-[#3B2418]/50 px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#3B2418] hover:bg-[#3B2418]/5"
+                  >
+                    Sign in
+                  </Link>
 
-              <Link
-                href="/sign-up"
-                onClick={closeMobileMenu}
-                className="rounded-full bg-[#3B2418] px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-white hover:bg-[#684733]"
-              >
-                Sign up
-              </Link>
-            </div>
+                  <Link
+                    href="/sign-up"
+                    onClick={closeMobileMenu}
+                    className="rounded-full bg-[#3B2418] px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-white hover:bg-[#684733]"
+                  >
+                    Sign up
+                  </Link>
+                </div>
+              ))}
           </div>
         </nav>
       )}

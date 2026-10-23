@@ -3,8 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 
 import { Logo } from "@/components/atoms/Logo";
+import { createClient } from "@/lib/supabase/client";
 
 type AuthMode = "sign-in" | "sign-up";
 
@@ -14,37 +16,110 @@ interface AuthTemplateProps {
 
 export function AuthTemplate({ mode }: AuthTemplateProps) {
   const isSignUp = mode === "sign-up";
+  const router = useRouter();
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [message, setMessage] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-
-    if (isSignUp && password !== confirmPassword) {
-      setMessage("Passwords do not match. Please check again.");
-      return;
-    }
-
-    setMessage(
-      "Your form is ready. Account authentication will be connected in the next development step."
-    );
-  }
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">(
+    "success",
+  );
+  const [isLoading, setIsLoading] = useState(false);
 
   const inputClass =
     "h-10 w-full rounded-lg border border-[#E4D9CE] bg-white px-4 text-sm text-[#3B2418] outline-none transition-colors placeholder:text-stone-400 focus:border-[#8A6B55] focus:ring-2 focus:ring-[#8A6B55]/10";
 
   const passwordInputClass = `${inputClass} pr-16`;
 
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+
+    const formData = new FormData(event.currentTarget);
+    const email = String(formData.get("email") ?? "").trim();
+    const fullName = String(formData.get("fullName") ?? "").trim();
+
+    if (isSignUp && password !== confirmPassword) {
+      setMessageType("error");
+      setMessage("Your passwords do not match. Please try again.");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const supabase = createClient();
+
+      if (isSignUp) {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: fullName,
+            },
+            emailRedirectTo: `${window.location.origin}/shop`,
+          },
+        });
+
+        if (error) {
+          setMessageType("error");
+
+          if (error.message.toLowerCase().includes("already registered")) {
+            setMessage(
+              "An account with this email may already exist. Try signing in instead.",
+            );
+          } else {
+            setMessage(error.message);
+          }
+
+          return;
+        }
+
+        if (data.session) {
+          router.replace("/shop");
+          router.refresh();
+          return;
+        }
+
+        setMessageType("success");
+        setMessage(
+          "Your account has been created. Check your email for a confirmation link before signing in.",
+        );
+        setPassword("");
+        setConfirmPassword("");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) {
+          setMessageType("error");
+          setMessage(
+            "We couldn't sign you in with those details. Check your email and password, then try again.",
+          );
+          return;
+        }
+
+        router.replace("/shop");
+        router.refresh();
+      }
+    } catch {
+      setMessageType("error");
+      setMessage(
+        "Something went wrong. Please try again in a moment.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#FBF8F4] lg:grid lg:grid-cols-2">
-      {/* Left panel: authentication form */}
       <section className="flex min-h-screen flex-col px-6 py-4 sm:px-10 sm:py-5 lg:px-12 lg:py-4 xl:px-20">
-        {/* Header */}
         <header className="flex items-center justify-between gap-4">
           <Logo />
 
@@ -56,9 +131,7 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
           </Link>
         </header>
 
-        {/* Vertically centered content */}
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-4 sm:py-5 lg:py-0">
-          {/* Introduction */}
           <div className={isSignUp ? "mb-5" : "mb-7"}>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8A6B55]">
               {isSignUp ? "Join our community" : "Welcome back"}
@@ -93,12 +166,10 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
             </p>
           </div>
 
-          {/* Form */}
           <form
             onSubmit={handleSubmit}
             className={isSignUp ? "space-y-3" : "space-y-4"}
           >
-            {/* Full name */}
             {isSignUp && (
               <div>
                 <label
@@ -115,12 +186,12 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
                   autoComplete="name"
                   placeholder="Your full name"
                   required
+                  maxLength={100}
                   className={inputClass}
                 />
               </div>
             )}
 
-            {/* Email */}
             <div>
               <label
                 htmlFor="email"
@@ -140,30 +211,13 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
               />
             </div>
 
-            {/* Password */}
             <div>
-              <div className="mb-1.5 flex items-center justify-between gap-3">
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-[#3B2418]"
-                >
-                  Password
-                </label>
-
-                {!isSignUp && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setMessage(
-                        "Password reset will be available when authentication is connected."
-                      )
-                    }
-                    className="text-xs text-[#8A6B55] transition-colors hover:text-[#3B2418]"
-                  >
-                    Forgot password?
-                  </button>
-                )}
-              </div>
+              <label
+                htmlFor="password"
+                className="mb-1.5 block text-sm font-medium text-[#3B2418]"
+              >
+                Password
+              </label>
 
               <div className="relative">
                 <input
@@ -200,7 +254,6 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
               )}
             </div>
 
-            {/* Confirm password */}
             {isSignUp && (
               <div>
                 <label
@@ -244,28 +297,45 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
               </div>
             )}
 
-            {/* Feedback */}
             {message && (
               <p
-                role="status"
+                role={messageType === "error" ? "alert" : "status"}
                 aria-live="polite"
-                className="rounded-lg border border-[#E4D9CE] bg-[#F3EAE0] px-4 py-3 text-sm leading-6 text-[#604331]"
+                className={`rounded-lg border px-4 py-3 text-sm leading-6 ${
+                  messageType === "error"
+                    ? "border-red-200 bg-red-50 text-red-800"
+                    : "border-[#E4D9CE] bg-[#F3EAE0] text-[#604331]"
+                }`}
               >
                 {message}
               </p>
             )}
+            <div className="mt-2 flex justify-end">
+              <Link
+    href="/forgot-password"
+    className="text-sm font-medium text-[#8A6B55] transition-colors hover:text-[#3B2418] hover:underline"
+  >
+    Forgot password?
+             </Link>
+            </div>
 
-            {/* Submit button */}
+
             <button
               type="submit"
-              className="flex h-10 w-full items-center justify-center gap-3 rounded-full bg-[#3B2418] px-6 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#604331] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A6B55] focus-visible:ring-offset-2"
+              disabled={isLoading}
+              className="flex h-10 w-full items-center justify-center gap-3 rounded-full bg-[#3B2418] px-6 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#604331] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A6B55] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSignUp ? "Create account" : "Sign in"}
-              <span aria-hidden="true">→</span>
+              {isLoading
+                ? isSignUp
+                  ? "Creating account…"
+                  : "Signing in…"
+                : isSignUp
+                  ? "Create account"
+                  : "Sign in"}
+              {!isLoading && <span aria-hidden="true">→</span>}
             </button>
           </form>
 
-          {/* Link to the other authentication page */}
           <p className="mt-4 text-center text-sm text-stone-600">
             {isSignUp ? "Already have an account?" : "New to BaristaBar?"}{" "}
             <Link
@@ -282,7 +352,6 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
         </div>
       </section>
 
-      {/* Right panel: editorial coffee image */}
       <aside className="relative hidden min-h-screen overflow-hidden bg-[#251811] lg:block">
         <Image
           src="/hero-coffee.jpeg"
