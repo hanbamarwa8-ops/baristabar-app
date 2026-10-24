@@ -1,3 +1,4 @@
+
 "use client";
 
 import Image from "next/image";
@@ -12,114 +13,201 @@ type AuthMode = "sign-in" | "sign-up";
 
 interface AuthTemplateProps {
   mode: AuthMode;
+  nextPath?: "/checkout";
 }
 
-export function AuthTemplate({ mode }: AuthTemplateProps) {
+export function AuthTemplate({
+  mode,
+  nextPath,
+}: AuthTemplateProps) {
   const isSignUp = mode === "sign-up";
   const router = useRouter();
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState<"success" | "error">(
+  const [messageType, setMessageType] = useState<"error" | "success">(
     "success",
   );
-  const [isLoading, setIsLoading] = useState(false);
 
-  const inputClass =
-    "h-10 w-full rounded-lg border border-[#E4D9CE] bg-white px-4 text-sm text-[#3B2418] outline-none transition-colors placeholder:text-stone-400 focus:border-[#8A6B55] focus:ring-2 focus:ring-[#8A6B55]/10";
+  const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const passwordInputClass = `${inputClass} pr-16`;
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
+
+  const otherAuthHref = isSignUp
+    ? nextPath
+      ? `/sign-in?next=${encodeURIComponent(nextPath)}`
+      : "/sign-in"
+    : nextPath
+      ? `/sign-up?next=${encodeURIComponent(nextPath)}`
+      : "/sign-up";
+
+  function showError(text: string) {
+    setMessageType("error");
+    setMessage(text);
+  }
+
+  function showSuccess(text: string) {
+    setMessageType("success");
+    setMessage(text);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (isSubmitting) return;
+
     setMessage("");
 
-    const formData = new FormData(event.currentTarget);
-    const email = String(formData.get("email") ?? "").trim();
-    const fullName = String(formData.get("fullName") ?? "").trim();
-
     if (isSignUp && password !== confirmPassword) {
-      setMessageType("error");
-      setMessage("Your passwords do not match. Please try again.");
+      showError("Passwords do not match. Please check again.");
       return;
     }
 
-    setIsLoading(true);
+    if (password.length < 8) {
+      showError("Your password must contain at least 8 characters.");
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       const supabase = createClient();
 
       if (isSignUp) {
         const { data, error } = await supabase.auth.signUp({
-          email,
+          email: email.trim(),
           password,
           options: {
             data: {
-              full_name: fullName,
+              full_name: fullName.trim(),
             },
-            emailRedirectTo: `${window.location.origin}/shop`,
+            emailRedirectTo: `${
+              window.location.origin
+            }/auth/callback?next=${encodeURIComponent(
+              nextPath ?? "/",
+            )}`,
           },
         });
 
         if (error) {
-          setMessageType("error");
-
-          if (error.message.toLowerCase().includes("already registered")) {
-            setMessage(
-              "An account with this email may already exist. Try signing in instead.",
-            );
-          } else {
-            setMessage(error.message);
-          }
-
+          showError(error.message);
           return;
         }
 
+        setPassword("");
+        setConfirmPassword("");
+
         if (data.session) {
-          router.replace("/shop");
+          router.replace(nextPath ?? "/");
           router.refresh();
           return;
         }
 
-        setMessageType("success");
-        setMessage(
-          "Your account has been created. Check your email for a confirmation link before signing in.",
+        showSuccess(
+          "Your account request was received. Check your email for the confirmation link before signing in.",
         );
-        setPassword("");
-        setConfirmPassword("");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
+
+        return;
+      }
+
+      const { data, error } =
+        await supabase.auth.signInWithPassword({
+          email: email.trim(),
           password,
         });
 
-        if (error) {
-          setMessageType("error");
-          setMessage(
-            "We couldn't sign you in with those details. Check your email and password, then try again.",
-          );
-          return;
-        }
-
-        router.replace("/shop");
-        router.refresh();
+      if (error) {
+        showError(
+          "Unable to sign in. Check your email and password, then try again.",
+        );
+        return;
       }
-    } catch {
-      setMessageType("error");
-      setMessage(
-        "Something went wrong. Please try again in a moment.",
+
+      const isAdmin =
+        data.user?.app_metadata?.role === "admin";
+
+      router.replace(
+        isAdmin ? "/admin" : nextPath ?? "/",
+      );
+
+      router.refresh();
+    } catch (error) {
+      console.error("Supabase authentication failed:", error);
+
+      showError(
+        "We could not connect to authentication. Check your connection and Supabase configuration, then try again.",
       );
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   }
 
+  async function handleForgotPassword() {
+    if (isSendingReset) return;
+
+    setMessage("");
+
+    if (!email.trim()) {
+      showError(
+        "Enter your email address first, then choose Forgot password.",
+      );
+      return;
+    }
+
+    setIsSendingReset(true);
+
+    try {
+      const supabase = createClient();
+
+      const { error } =
+        await supabase.auth.resetPasswordForEmail(
+          email.trim(),
+          {
+            redirectTo: `${
+              window.location.origin
+            }/auth/callback?next=${encodeURIComponent(
+              "/reset-password",
+            )}`,
+          },
+        );
+
+      if (error) {
+        showError(
+          "Unable to send the reset email. Please try again.",
+        );
+        return;
+      }
+
+      showSuccess(
+        "If an account exists for this email, a password reset link will be sent. Check your inbox and spam folder.",
+      );
+    } catch (error) {
+      console.error("Password reset request failed:", error);
+
+      showError(
+        "We could not send the reset request. Please try again.",
+      );
+    } finally {
+      setIsSendingReset(false);
+    }
+  }
+
+  const inputClass =
+    "h-10 w-full rounded-lg border border-[#E4D9CE] bg-white px-4 text-sm text-[#3B2418] outline-none transition-colors placeholder:text-stone-400 focus:border-[#8A6B55] focus:ring-2 focus:ring-[#8A6B55]/10";
+
+  const passwordInputClass = `${inputClass} pr-16`;
+
   return (
     <main className="min-h-screen bg-[#FBF8F4] lg:grid lg:grid-cols-2">
+      {/* Left panel: authentication form */}
       <section className="flex min-h-screen flex-col px-6 py-4 sm:px-10 sm:py-5 lg:px-12 lg:py-4 xl:px-20">
+        {/* Header */}
         <header className="flex items-center justify-between gap-4">
           <Logo />
 
@@ -127,14 +215,19 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
             href="/shop"
             className="shrink-0 text-xs font-medium text-stone-500 transition-colors hover:text-[#3B2418]"
           >
-            Back to shop <span aria-hidden="true">→</span>
+            Back to shop{" "}
+            <span aria-hidden="true">→</span>
           </Link>
         </header>
 
+        {/* Main content */}
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-4 sm:py-5 lg:py-0">
+          {/* Introduction */}
           <div className={isSignUp ? "mb-5" : "mb-7"}>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8A6B55]">
-              {isSignUp ? "Join our community" : "Welcome back"}
+              {isSignUp
+                ? "Join our community"
+                : "Welcome back"}
             </p>
 
             <h1
@@ -148,13 +241,17 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
                 <>
                   Create your
                   <br />
-                  <span className="italic">coffee account.</span>
+                  <span className="italic">
+                    coffee account.
+                  </span>
                 </>
               ) : (
                 <>
                   Your coffee
                   <br />
-                  <span className="italic">ritual awaits.</span>
+                  <span className="italic">
+                    ritual awaits.
+                  </span>
                 </>
               )}
             </h1>
@@ -166,10 +263,12 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
             </p>
           </div>
 
+          {/* Authentication form */}
           <form
             onSubmit={handleSubmit}
             className={isSignUp ? "space-y-3" : "space-y-4"}
           >
+            {/* Full name */}
             {isSignUp && (
               <div>
                 <label
@@ -185,13 +284,17 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
                   type="text"
                   autoComplete="name"
                   placeholder="Your full name"
+                  value={fullName}
+                  onChange={(event) =>
+                    setFullName(event.target.value)
+                  }
                   required
-                  maxLength={100}
                   className={inputClass}
                 />
               </div>
             )}
 
+            {/* Email */}
             <div>
               <label
                 htmlFor="email"
@@ -206,18 +309,38 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
                 type="email"
                 autoComplete="email"
                 placeholder="you@example.com"
+                value={email}
+                onChange={(event) =>
+                  setEmail(event.target.value)
+                }
                 required
                 className={inputClass}
               />
             </div>
 
+            {/* Password */}
             <div>
-              <label
-                htmlFor="password"
-                className="mb-1.5 block text-sm font-medium text-[#3B2418]"
-              >
-                Password
-              </label>
+              <div className="mb-1.5 flex items-center justify-between gap-3">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-[#3B2418]"
+                >
+                  Password
+                </label>
+
+                {!isSignUp && (
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={isSendingReset}
+                    className="text-xs text-[#8A6B55] transition-colors hover:text-[#3B2418] disabled:opacity-60"
+                  >
+                    {isSendingReset
+                      ? "Sending link..."
+                      : "Forgot password?"}
+                  </button>
+                )}
+              </div>
 
               <div className="relative">
                 <input
@@ -225,22 +348,34 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
                   name="password"
                   type={showPassword ? "text" : "password"}
                   autoComplete={
-                    isSignUp ? "new-password" : "current-password"
+                    isSignUp
+                      ? "new-password"
+                      : "current-password"
                   }
                   placeholder={
-                    isSignUp ? "Create a password" : "Enter your password"
+                    isSignUp
+                      ? "Create a password"
+                      : "Enter your password"
                   }
                   required
                   minLength={8}
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) =>
+                    setPassword(event.target.value)
+                  }
                   className={passwordInputClass}
                 />
 
                 <button
                   type="button"
-                  onClick={() => setShowPassword((visible) => !visible)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() =>
+                    setShowPassword((visible) => !visible)
+                  }
+                  aria-label={
+                    showPassword
+                      ? "Hide password"
+                      : "Show password"
+                  }
                   className="absolute inset-y-0 right-3 text-xs font-medium text-[#8A6B55] transition-colors hover:text-[#3B2418]"
                 >
                   {showPassword ? "Hide" : "Show"}
@@ -254,6 +389,7 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
               )}
             </div>
 
+            {/* Confirm password */}
             {isSignUp && (
               <div>
                 <label
@@ -267,7 +403,9 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
                   <input
                     id="confirmPassword"
                     name="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
+                    type={
+                      showConfirmPassword ? "text" : "password"
+                    }
                     autoComplete="new-password"
                     placeholder="Enter your password again"
                     required
@@ -282,7 +420,9 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
                   <button
                     type="button"
                     onClick={() =>
-                      setShowConfirmPassword((visible) => !visible)
+                      setShowConfirmPassword(
+                        (visible) => !visible,
+                      )
                     }
                     aria-label={
                       showConfirmPassword
@@ -297,9 +437,14 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
               </div>
             )}
 
+            {/* Feedback */}
             {message && (
               <p
-                role={messageType === "error" ? "alert" : "status"}
+                role={
+                  messageType === "error"
+                    ? "alert"
+                    : "status"
+                }
                 aria-live="polite"
                 className={`rounded-lg border px-4 py-3 text-sm leading-6 ${
                   messageType === "error"
@@ -310,39 +455,36 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
                 {message}
               </p>
             )}
-            <div className="mt-2 flex justify-end">
-              <Link
-    href="/forgot-password"
-    className="text-sm font-medium text-[#8A6B55] transition-colors hover:text-[#3B2418] hover:underline"
-  >
-    Forgot password?
-             </Link>
-            </div>
 
-
+            {/* Submit */}
             <button
               type="submit"
-              disabled={isLoading}
-              className="flex h-10 w-full items-center justify-center gap-3 rounded-full bg-[#3B2418] px-6 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#604331] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A6B55] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
+              className="flex h-10 w-full items-center justify-center gap-3 rounded-full bg-[#3B2418] px-6 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#604331] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A6B55] focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-70"
             >
-              {isLoading
-                ? isSignUp
-                  ? "Creating account…"
-                  : "Signing in…"
+              {isSubmitting
+                ? "Please wait..."
                 : isSignUp
                   ? "Create account"
                   : "Sign in"}
-              {!isLoading && <span aria-hidden="true">→</span>}
+
+              <span aria-hidden="true">→</span>
             </button>
           </form>
 
+          {/* Switch between sign in and sign up */}
           <p className="mt-4 text-center text-sm text-stone-600">
-            {isSignUp ? "Already have an account?" : "New to BaristaBar?"}{" "}
+            {isSignUp
+              ? "Already have an account?"
+              : "New to BaristaBar?"}{" "}
+
             <Link
-              href={isSignUp ? "/sign-in" : "/sign-up"}
+              href={otherAuthHref}
               className="font-semibold text-[#3B2418] underline decoration-[#8A6B55]/50 underline-offset-4 transition-colors hover:text-[#8A6B55]"
             >
-              {isSignUp ? "Sign in" : "Create an account"}
+              {isSignUp
+                ? "Sign in"
+                : "Create an account"}
             </Link>
           </p>
 
@@ -352,6 +494,7 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
         </div>
       </section>
 
+      {/* Right panel: coffee image */}
       <aside className="relative hidden min-h-screen overflow-hidden bg-[#251811] lg:block">
         <Image
           src="/hero-coffee.jpeg"
@@ -372,12 +515,15 @@ export function AuthTemplate({ mode }: AuthTemplateProps) {
           <h2 className="mt-5 max-w-xl font-serif text-5xl leading-tight text-[#FBF8F4] xl:text-6xl">
             Discover your coffee.
             <br />
-            <span className="italic">Brew your experience.</span>
+            <span className="italic">
+              Brew your experience.
+            </span>
           </h2>
 
           <p className="mt-5 max-w-md text-sm leading-7 text-[#E5D8CE]">
-            From carefully selected beans to your favourite brewing ritual,
-            discover the little details that make every cup special.
+            From carefully selected beans to your favourite
+            brewing ritual, discover the little details that make
+            every cup special.
           </p>
 
           <div className="mt-8 h-px w-16 bg-[#D6BDA7]" />

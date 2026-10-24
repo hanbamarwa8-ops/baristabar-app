@@ -497,9 +497,8 @@ export function BeanBoxCustomizer({
               </div>
 
               <p className="mt-4 text-xs leading-5 text-stone-500">
-                Total based on the current catalogue prices of the
-                included products. Free delivery throughout Tunisia. No delivery
-                fee, bundle discount or packaging fee has been added.
+              Free delivery is available with a BeanBox and at least one other
+              product, or on orders over 200 DT.
               </p>
 
               {!selectionComplete && (

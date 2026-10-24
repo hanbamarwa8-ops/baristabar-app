@@ -97,7 +97,7 @@ export function BeanBoxSection() {
 
           <p className="mt-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#604331]">
             <span aria-hidden="true">✓</span>
-            Free delivery throughout Tunisia
+            Free delivery is available with a BeanBox.
           </p>
         </div>
 

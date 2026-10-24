@@ -192,7 +192,8 @@ export default async function BeanBoxDetailPage({
 
               <p className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#604331]">
                 <span aria-hidden="true">✓</span>
-                Free delivery throughout Tunisia
+                Free delivery is available with a BeanBox and at least one other
+                product, or on orders over 200 DT.
               </p>
 
               <div className="mt-6 h-px bg-[#E8DFD5]" />

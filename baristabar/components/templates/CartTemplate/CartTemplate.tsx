@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+
 import { CartItemRow } from "@/components/molecules/CartItemRow/CartItemRow";
 import { CartSummary } from "@/components/organisms/CartSummary/CartSummary";
 import { useCart } from "@/components/providers/CartProvider";
@@ -14,6 +15,21 @@ export default function CartTemplate() {
     updateQuantity,
     isHydrated,
   } = useCart();
+
+  // Au moins une BeanBox dans le panier.
+  const hasBeanBox = items.some(
+    (item) => item.kind === "beanbox",
+  );
+
+  // Au moins un produit classique en plus des BeanBox.
+  const hasOtherProduct = items.some(
+    (item) => item.kind !== "beanbox",
+  );
+
+  // Livraison gratuite si BeanBox + autre produit,
+  // OU si le sous-total dépasse strictement 200 DT.
+  const freeDelivery =
+    (hasBeanBox && hasOtherProduct) || subtotal > 200;
 
   if (!isHydrated) {
     return (
@@ -83,6 +99,7 @@ export default function CartTemplate() {
               <CartSummary
                 itemCount={itemCount}
                 subtotal={subtotal}
+                freeDelivery={freeDelivery}
               />
             </div>
           </div>

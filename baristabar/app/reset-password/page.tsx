@@ -24,8 +24,9 @@ export default function ResetPasswordPage() {
 
     // Retenir les paramètres avant que le client traite le lien.
     const hasRecoveryParams =
-      url.searchParams.has("code") ||
-      url.hash.includes("type=recovery");
+    url.searchParams.has("recovery") ||
+    url.searchParams.has("code") ||
+    url.hash.includes("type=recovery");
 
     let active = true;
 
