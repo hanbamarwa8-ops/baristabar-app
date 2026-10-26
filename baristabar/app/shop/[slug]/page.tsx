@@ -7,7 +7,7 @@ import { Footer } from "@/components/organisms/Footer/Footer";
 import { ProductDetailActions } from "@/components/molecules/ProductDetailActions/ProductDetailActions";
 import {
   getProductImage,
-  getProductsFromApi,
+  getProductsFromDatabase,
   type Product,
 } from "@/lib/products";
 
@@ -46,7 +46,7 @@ export default async function ProductPage({
 
   try {
     // Les produits proviennent exclusivement de l'API Express.
-    products = await getProductsFromApi();
+    products = await getProductsFromDatabase();
   } catch (error) {
     console.error(
       "Unable to load product details from the API:",

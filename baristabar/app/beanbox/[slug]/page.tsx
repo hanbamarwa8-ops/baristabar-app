@@ -11,7 +11,7 @@ import {
 } from "@/components/organisms/BeanBoxCustomizer/BeanBoxCustomizer";
 import {
   getProductImage,
-  getProductsFromApi,
+  getProductsFromDatabase,
   type Product,
 } from "@/lib/products";
 
@@ -96,7 +96,7 @@ export default async function BeanBoxDetailPage({
   let catalogueError = false;
 
   try {
-    catalog = await getProductsFromApi();
+    catalog = await getProductsFromDatabase();
   } catch (error) {
     console.error("Unable to load BeanBox products:", error);
     catalogueError = true;

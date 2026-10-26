@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Navbar } from "@/components/organisms/Navbar/Navbar";
 import { Footer } from "@/components/organisms/Footer/Footer";
 import {
-  getProductsFromApi,
+  getProductsFromDatabase,
   type Product,
 } from "@/lib/products";
 
@@ -88,7 +88,7 @@ export default async function CoffeeRecipesPage() {
   let catalogueError = false;
 
   try {
-    catalog = await getProductsFromApi();
+    catalog = await getProductsFromDatabase();
   } catch (error) {
     console.error("Unable to load recipe products:", error);
     catalogueError = true;
