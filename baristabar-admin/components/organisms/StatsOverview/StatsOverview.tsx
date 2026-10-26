@@ -7,7 +7,6 @@ import {
   } from "@/components/ui/card";
   import type { LucideIcon } from "lucide-react";
    
-  import { StatCard } from "@/components/molecules/StatCard/StatCard";
   type StatCardProps = {
     title: string;
     value: string | number;
