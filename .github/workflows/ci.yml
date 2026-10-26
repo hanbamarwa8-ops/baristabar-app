@@ -1,0 +1,61 @@
+name: BaristaBar CI
+
+on:
+  push:
+    branches:
+      - main
+      - migration/monoserver
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  web-checks:
+    name: Tests, lint and build
+    runs-on: ubuntu-latest
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: baristabar/package-lock.json
+
+      - name: Validate Supabase public configuration
+        shell: bash
+        run: |
+          test -n "$NEXT_PUBLIC_SUPABASE_URL" || {
+            echo "::error::Missing GitHub variable NEXT_PUBLIC_SUPABASE_URL"
+            exit 1
+          }
+          test -n "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" || {
+            echo "::error::Missing GitHub variable NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+            exit 1
+          }
+
+      - name: Install dependencies
+        working-directory: baristabar
+        run: npm ci
+
+      - name: Run unit tests
+        working-directory: baristabar
+        run: npm run test
+
+      - name: Run ESLint
+        working-directory: baristabar
+        run: npm run lint
+
+      - name: Build Next.js
+        working-directory: baristabar
+        run: npm run build
