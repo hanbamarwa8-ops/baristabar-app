@@ -6,7 +6,7 @@ import { Footer } from "@/components/organisms/Footer/Footer";
 import { FeaturedProductCard } from "@/components/molecules/FeaturedProductCard";
 import {
   getProductImage,
-  getProductsFromApi,
+  getProductsFromDatabase,
   type Product,
 } from "@/lib/products";
 
@@ -77,7 +77,7 @@ export default async function CategoryPage({
   let catalogueError = false;
 
   try {
-    allProducts = await getProductsFromApi();
+    allProducts = await getProductsFromDatabase();
   } catch (error) {
     console.error("Unable to load category products:", error);
     catalogueError = true;

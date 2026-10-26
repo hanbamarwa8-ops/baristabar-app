@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FeaturedProductCard } from "@/components/molecules/FeaturedProductCard";
 import {
   getProductImage,
-  getProductsFromApi,
+  getProductsFromDatabase,
   type Product,
 } from "@/lib/products";
 
@@ -20,10 +20,10 @@ export async function FeaturedProductsSection() {
   let hasError = false;
 
   try {
-    apiProducts = await getProductsFromApi();
+    apiProducts = await getProductsFromDatabase();
   } catch (error) {
     console.error(
-      "Unable to load featured products from the API:",
+      "Unable to load featured products from the database:",
       error,
     );
     hasError = true;
@@ -64,7 +64,7 @@ export async function FeaturedProductsSection() {
         {hasError ? (
           <p role="alert" className="mt-10 text-sm text-stone-500">
             Featured products are temporarily unavailable.
-            Please check the backend connection and try again.
+            Please try again later.
           </p>
         ) : displayProducts.length === 0 ? (
           <p className="mt-10 text-sm text-stone-500">

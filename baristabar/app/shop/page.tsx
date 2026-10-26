@@ -4,7 +4,7 @@ import { Navbar } from "@/components/organisms/Navbar/Navbar";
 import { Footer } from "@/components/organisms/Footer/Footer";
 import { FeaturedProductCard } from "@/components/molecules/FeaturedProductCard";
 import {
-  getProductsFromApi,
+  getProductsFromDatabase,
   getProductImage,
   type Product,
 } from "@/lib/products";
@@ -99,7 +99,7 @@ export default async function ShopPage({
 
   try {
     // Supabase supplies the catalogue through the shared Express API.
-    allProducts = await getProductsFromApi();
+    allProducts = await getProductsFromDatabase();
   } catch (error) {
     console.error("Unable to load the product catalogue:", error);
     catalogueError = true;

@@ -6,7 +6,7 @@ import { Navbar } from "@/components/organisms/Navbar/Navbar";
 import { Footer } from "@/components/organisms/Footer/Footer";
 import {
   getProductImage,
-  getProductsFromApi,
+  getProductsFromDatabase,
   type Product,
 } from "@/lib/products";
 export const dynamic = "force-dynamic";
@@ -100,7 +100,7 @@ export default async function BrewingRitualsPage() {
   let catalogueError = false;
 
   try {
-    catalog = await getProductsFromApi();
+    catalog = await getProductsFromDatabase();
   } catch (error) {
     console.error("Unable to load Brewing Rituals catalogue:", error);
     catalogueError = true;
