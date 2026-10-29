@@ -1,4 +1,3 @@
-
 import Link from "next/link";
 
 import { AdminHeader } from "@/components/admin/organisms/AdminHeader/AdminHeader";
@@ -31,7 +30,7 @@ export default async function Home() {
 
   const totalStock = products.reduce(
     (total, product) => total + Number(product.stock || 0),
-    0,
+    0
   );
 
   return (
@@ -75,6 +74,22 @@ export default async function Home() {
           </Link>
         </div>
 
+        <div className="flex flex-col gap-4 rounded-xl border bg-background p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-semibold">Gestion des commandes</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Consulte les commandes et les informations de livraison.
+            </p>
+          </div>
+
+          <Link
+            href="/admin/orders"
+            className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            Gérer les commandes →
+          </Link>
+        </div>
+
         {error && (
           <div
             role="alert"
@@ -91,9 +106,7 @@ export default async function Home() {
               Produits actifs récupérés
             </p>
 
-            <p className="mt-2 text-3xl font-semibold">
-              {products.length}
-            </p>
+            <p className="mt-2 text-3xl font-semibold">{products.length}</p>
           </div>
 
           <div className="rounded-xl border bg-background p-6">
@@ -101,17 +114,13 @@ export default async function Home() {
               Stock total disponible
             </p>
 
-            <p className="mt-2 text-3xl font-semibold">
-              {totalStock}
-            </p>
+            <p className="mt-2 text-3xl font-semibold">{totalStock}</p>
           </div>
         </div>
 
         <section className="overflow-hidden rounded-xl border bg-background">
           <div className="border-b p-5">
-            <h2 className="text-lg font-semibold">
-              Catalogue des produits
-            </h2>
+            <h2 className="text-lg font-semibold">Catalogue des produits</h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
               Aperçu des produits actifs récupérés depuis la base de données.
