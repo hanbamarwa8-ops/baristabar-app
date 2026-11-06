@@ -355,11 +355,11 @@ export function ProductsManager() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className={labelClassName} htmlFor="product-name">Nom du produit *</label>
-              <input id="product-name" className={fieldClassName} value={draft.name} onChange={(event) => handleNameChange(event.target.value)} maxLength={160} required />
+              <input id="product-name" className={fieldClassName} value={draft.name} onChange={(event) => handleNameChange(event.target.value)} maxLength={150} required />
             </div>
             <div>
               <label className={labelClassName} htmlFor="product-slug">Slug URL *</label>
-              <input id="product-slug" className={fieldClassName} value={draft.slug} onChange={(event) => { setSlugWasEdited(true); updateDraft("slug", slugify(event.target.value)); }} maxLength={160} pattern="[a-z0-9]+(-[a-z0-9]+)*" required />
+              <input id="product-slug" className={fieldClassName} value={draft.slug} onChange={(event) => { setSlugWasEdited(true); updateDraft("slug", slugify(event.target.value)); }} maxLength={180} pattern="[a-z0-9]+(-[a-z0-9]+)*" required />
               <p className="mt-1 text-xs text-muted-foreground">Exemple : house-espresso-blend</p>
             </div>
             <div>

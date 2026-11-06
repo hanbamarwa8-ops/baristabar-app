@@ -51,23 +51,33 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function optionalText(value: unknown): string | null | undefined {
+function optionalText(
+  value: unknown,
+  maxLength = 5000,
+): string | null | undefined {
   if (value === undefined || value === null) return null;
   if (typeof value !== "string") return undefined;
 
   const trimmed = value.trim();
-  if (trimmed.length > 5000) return undefined;
+
+  if (trimmed.length > maxLength) return undefined;
 
   return trimmed || null;
 }
 
+/**
+ * Validate product data received from the admin API.
+ */
 export function validateProductPayload(
   body: unknown,
 ):
   | { ok: true; value: ProductWriteInput }
   | { ok: false; message: string } {
   if (!isRecord(body)) {
-    return { ok: false, message: "A valid product object is required." };
+    return {
+      ok: false,
+      message: "A valid product object is required.",
+    };
   }
 
   const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -89,8 +99,8 @@ export function validateProductPayload(
         ? Number(body.stock)
         : Number.NaN;
 
-  const description = optionalText(body.description);
-  const imageUrl = optionalText(body.image_url);
+  const description = optionalText(body.description, 5000);
+  const imageUrl = optionalText(body.image_url, 2048);
 
   if (!name || name.length > 150) {
     return {
@@ -105,7 +115,8 @@ export function validateProductPayload(
   ) {
     return {
       ok: false,
-      message: "Slug must use lowercase letters, numbers and single hyphens only.",
+      message:
+        "Slug must use lowercase letters, numbers and single hyphens only.",
     };
   }
 
@@ -124,7 +135,8 @@ export function validateProductPayload(
   ) {
     return {
       ok: false,
-      message: "Price must be non-negative with at most 3 decimal places.",
+      message:
+        "Price must be non-negative with at most 3 decimal places.",
     };
   }
 
@@ -140,11 +152,46 @@ export function validateProductPayload(
   }
 
   if (description === undefined) {
-    return { ok: false, message: "Description must be text or empty." };
+    return {
+      ok: false,
+      message: "Description must be text or empty.",
+    };
   }
 
   if (imageUrl === undefined) {
-    return { ok: false, message: "Image path must be text or empty." };
+    return {
+      ok: false,
+      message: "Image path must be text or empty.",
+    };
+  }
+
+  if (imageUrl !== null) {
+    const isLocalPath =
+      imageUrl.startsWith("/") &&
+      !imageUrl.startsWith("//") &&
+      !imageUrl.includes("\\") &&
+      !imageUrl.includes("\0");
+
+    let isHttpsUrl = false;
+
+    try {
+      const parsedUrl = new URL(imageUrl);
+
+      isHttpsUrl =
+        parsedUrl.protocol === "https:" &&
+        parsedUrl.username === "" &&
+        parsedUrl.password === "";
+    } catch {
+      // A non-URL value is accepted only when it is a safe local path.
+    }
+
+    if (!isLocalPath && !isHttpsUrl) {
+      return {
+        ok: false,
+        message:
+          "Image path must be a local path or a valid HTTPS URL.",
+      };
+    }
   }
 
   if (typeof body.is_active !== "boolean") {
@@ -169,17 +216,29 @@ export function validateProductPayload(
   };
 }
 
+/**
+ * Validate product UUID.
+ */
 export function isValidProductId(id: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     id,
   );
 }
 
+/**
+ * Extract PostgreSQL error code.
+ */
 export function getDatabaseErrorCode(error: unknown): string | null {
-  if (!isRecord(error) || typeof error.code !== "string") return null;
+  if (!isRecord(error) || typeof error.code !== "string") {
+    return null;
+  }
+
   return error.code;
 }
 
+/**
+ * Retrieve all products for the admin dashboard.
+ */
 export async function findAllAdminProducts() {
   const result = await getPool().query<AdminProductRow>(`
     SELECT ${SELECT_COLUMNS}
@@ -190,11 +249,21 @@ export async function findAllAdminProducts() {
   return result.rows.map(serializeProduct);
 }
 
+/**
+ * Create a new product.
+ */
 export async function createAdminProduct(input: ProductWriteInput) {
   const result = await getPool().query<AdminProductRow>(
     `
       INSERT INTO public.products (
-        name, slug, description, price, category, image_url, stock, is_active
+        name,
+        slug,
+        description,
+        price,
+        category,
+        image_url,
+        stock,
+        is_active
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING ${SELECT_COLUMNS}
@@ -214,6 +283,9 @@ export async function createAdminProduct(input: ProductWriteInput) {
   return serializeProduct(result.rows[0]);
 }
 
+/**
+ * Update an existing product.
+ */
 export async function updateAdminProduct(
   id: string,
   input: ProductWriteInput,
@@ -250,6 +322,9 @@ export async function updateAdminProduct(
   return result.rows[0] ? serializeProduct(result.rows[0]) : null;
 }
 
+/**
+ * Activate or deactivate a product.
+ */
 export async function updateProductActiveStatus(
   id: string,
   isActive: boolean,
@@ -257,7 +332,9 @@ export async function updateProductActiveStatus(
   const result = await getPool().query<AdminProductRow>(
     `
       UPDATE public.products
-      SET is_active = $1, updated_at = NOW()
+      SET
+        is_active = $1,
+        updated_at = NOW()
       WHERE id = $2
       RETURNING ${SELECT_COLUMNS}
     `,

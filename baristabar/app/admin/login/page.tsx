@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { LoginForm } from "./LoginForm";
 
 export const metadata: Metadata = {
-  title: "Admin sign in | BaristaBar",
-  description: "Sign in to the BaristaBar administration workspace.",
+  title: "Connexion administrateur | BaristaBar",
+  description: "Accéder à l’espace d’administration BaristaBar.",
 };
 
 export default function LoginPage() {
@@ -20,7 +20,7 @@ export default function LoginPage() {
           </h1>
 
           <p className="mt-2 text-sm text-muted-foreground">
-            Sign in with your authorized administrator account.
+            Connecte-toi avec ton compte administrateur autorisé.
           </p>
         </div>
 

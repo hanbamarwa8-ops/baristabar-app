@@ -9,19 +9,19 @@ export default function UnauthorizedPage() {
         </p>
 
         <h1 className="mt-4 text-2xl font-semibold tracking-tight">
-          Access denied
+          Accès refusé
         </h1>
 
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          This account is not authorized to access the administration workspace.
-          Please sign in with the authorized administrator account.
+          Ce compte n’est pas autorisé à accéder à l’espace d’administration.
+          Connecte-toi avec un compte disposant du rôle administrateur.
         </p>
 
         <Link
           href="/admin/login"
           className="mt-6 inline-flex h-10 items-center justify-center rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground hover:opacity-90"
         >
-          Return to sign in
+          Retour à la connexion
         </Link>
       </section>
     </main>

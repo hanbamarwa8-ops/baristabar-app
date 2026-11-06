@@ -25,7 +25,7 @@ export function LoginForm() {
 
       if (error) {
         setErrorMessage(
-          "Sign-in failed. Check your email and password, and confirm that your account is enabled.",
+          "Connexion impossible. Vérifie ton adresse e-mail et ton mot de passe.",
         );
         return;
       }
@@ -34,7 +34,7 @@ export function LoginForm() {
       router.refresh();
     } catch {
       setErrorMessage(
-        "Unable to connect to authentication. Check the Supabase settings in .env.local.",
+        "Impossible de contacter le service d’authentification. Vérifie la configuration Supabase dans .env.local.",
       );
     } finally {
       setIsSubmitting(false);
@@ -48,7 +48,7 @@ export function LoginForm() {
     <form className="space-y-5" onSubmit={handleSubmit}>
       <div>
         <label htmlFor="admin-email" className="text-sm font-medium">
-          Email address
+          Adresse e-mail
         </label>
         <input
           id="admin-email"
@@ -59,13 +59,13 @@ export function LoginForm() {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           className={inputClassName}
-          placeholder="admin@example.com"
+          placeholder="admin@exemple.com"
         />
       </div>
 
       <div>
         <label htmlFor="admin-password" className="text-sm font-medium">
-          Password
+          Mot de passe
         </label>
         <input
           id="admin-password"
@@ -76,7 +76,7 @@ export function LoginForm() {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           className={inputClassName}
-          placeholder="Enter your password"
+          placeholder="Saisir ton mot de passe"
         />
       </div>
 
@@ -94,12 +94,12 @@ export function LoginForm() {
         disabled={isSubmitting}
         className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isSubmitting ? "Signing in…" : "Sign in"}
+        {isSubmitting ? "Connexion…" : "Se connecter"}
       </button>
 
       <p className="text-xs leading-5 text-muted-foreground">
-        Access is restricted to the administrator email configured for this app.
-        There is no public administrator sign-up.
+        L’accès est réservé aux comptes dont le profil Supabase possède le rôle
+        administrateur. La création publique de comptes administrateurs est désactivée.
       </p>
     </form>
   );

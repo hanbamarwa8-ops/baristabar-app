@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+
 import { requireAdminApi } from "@/lib/require-admin-api";
+
 import {
   createAdminProduct,
   findAllAdminProducts,
@@ -10,30 +12,56 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * GET /api/admin/products
+ *
+ * Retrieve all products for the admin dashboard.
+ */
 export async function GET(request: Request) {
   const auth = await requireAdminApi(request);
-  if (!auth.ok) return auth.response;
+
+  if (!auth.ok) {
+    return auth.response;
+  }
 
   try {
     const products = await findAllAdminProducts();
 
-    return NextResponse.json({
-      success: true,
-      data: products,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        data: products,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      },
+    );
   } catch (error) {
     console.error("Failed to retrieve admin products:", error);
 
     return NextResponse.json(
-      { success: false, message: "Unable to retrieve products." },
+      {
+        success: false,
+        message: "Unable to retrieve products.",
+      },
       { status: 500 },
     );
   }
 }
 
+/**
+ * POST /api/admin/products
+ *
+ * Create a new product.
+ */
 export async function POST(request: Request) {
   const auth = await requireAdminApi(request);
-  if (!auth.ok) return auth.response;
+
+  if (!auth.ok) {
+    return auth.response;
+  }
 
   let body: unknown;
 
@@ -41,7 +69,10 @@ export async function POST(request: Request) {
     body = await request.json();
   } catch {
     return NextResponse.json(
-      { success: false, message: "A valid JSON body is required." },
+      {
+        success: false,
+        message: "A valid JSON body is required.",
+      },
       { status: 400 },
     );
   }
@@ -50,7 +81,10 @@ export async function POST(request: Request) {
 
   if (!validation.ok) {
     return NextResponse.json(
-      { success: false, message: validation.message },
+      {
+        success: false,
+        message: validation.message,
+      },
       { status: 400 },
     );
   }
@@ -59,7 +93,10 @@ export async function POST(request: Request) {
     const product = await createAdminProduct(validation.value);
 
     return NextResponse.json(
-      { success: true, data: product },
+      {
+        success: true,
+        data: product,
+      },
       { status: 201 },
     );
   } catch (error) {
@@ -82,7 +119,9 @@ export async function POST(request: Request) {
         success: false,
         message: "Unable to create product.",
       },
-      { status: code === "22P02" ? 400 : 500 },
+      {
+        status: code === "22P02" ? 400 : 500,
+      },
     );
   }
 }

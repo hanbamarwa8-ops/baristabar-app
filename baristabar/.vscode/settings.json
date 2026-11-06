@@ -1,4 +1,4 @@
 {
-  "typescript.tsdk": "node_modules\\typescript\\lib",
+  "typescript.tsdk": "baristabar/node_modules/typescript/lib",
   "liveServer.settings.multiRootWorkspaceName": "baristabar"
 }

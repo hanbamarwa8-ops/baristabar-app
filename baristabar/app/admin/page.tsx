@@ -4,6 +4,7 @@ import { AdminHeader } from "@/components/admin/organisms/AdminHeader/AdminHeade
 import { AdminSignOutButton } from "@/components/admin/organisms/AdminSignOutButton/AdminSignOutButton";
 import { requireAdmin } from "@/lib/supabase/admin";
 import { findActiveProducts } from "@/lib/products-repository";
+import { getPool } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -30,8 +31,30 @@ export default async function Home() {
 
   const totalStock = products.reduce(
     (total, product) => total + Number(product.stock || 0),
-    0
+    0,
   );
+
+  let totalOrders = 0;
+  let pendingOrders = 0;
+  let ordersError: string | null = null;
+
+  try {
+    const { rows } = await getPool().query<{
+      total_orders: string;
+      pending_orders: string;
+    }>(`
+      SELECT
+        COUNT(*)::text AS total_orders,
+        COUNT(*) FILTER (WHERE status = 'pending')::text AS pending_orders
+      FROM public.orders
+    `);
+
+    totalOrders = Number(rows[0]?.total_orders ?? 0);
+    pendingOrders = Number(rows[0]?.pending_orders ?? 0);
+  } catch (cause) {
+    console.error("Unable to load admin dashboard order metrics:", cause);
+    ordersError = "Les statistiques des commandes sont indisponibles.";
+  }
 
   return (
     <main className="min-h-screen bg-muted/30">
@@ -45,11 +68,11 @@ export default async function Home() {
             </p>
 
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-              Dashboard
+              Tableau de bord
             </h1>
 
             <p className="mt-2 text-muted-foreground">
-              Vue d’ensemble de ton catalogue.
+              Vue d’ensemble du catalogue et des commandes.
             </p>
           </div>
 
@@ -90,17 +113,18 @@ export default async function Home() {
           </Link>
         </div>
 
-        {error && (
+        {(error || ordersError) && (
           <div
             role="alert"
             className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800"
           >
-            <p className="font-semibold">Erreur de connexion</p>
-            <p className="mt-1">{error}</p>
+            <p className="font-semibold">Données partiellement indisponibles</p>
+            {error && <p className="mt-1">{error}</p>}
+            {ordersError && <p className="mt-1">{ordersError}</p>}
           </div>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border bg-background p-6">
             <p className="text-sm text-muted-foreground">
               Produits actifs récupérés
@@ -115,6 +139,24 @@ export default async function Home() {
             </p>
 
             <p className="mt-2 text-3xl font-semibold">{totalStock}</p>
+          </div>
+          <div className="rounded-xl border bg-background p-6">
+            <p className="text-sm text-muted-foreground">
+              Commandes enregistrées
+            </p>
+
+            <p className="mt-2 text-3xl font-semibold">{totalOrders}</p>
+          </div>
+
+          <div className="rounded-xl border bg-background p-6">
+            <p className="text-sm text-muted-foreground">
+              Commandes en attente
+            </p>
+
+            <p className="mt-2 text-3xl font-semibold">{pendingOrders}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              À traiter depuis la gestion des commandes.
+            </p>
           </div>
         </div>
 
