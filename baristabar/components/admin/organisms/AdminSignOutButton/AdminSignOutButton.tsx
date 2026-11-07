@@ -1,15 +1,21 @@
+
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
+
 import { createClient } from "@/lib/supabase/client";
 
 export function AdminSignOutButton() {
   const router = useRouter();
+
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   async function handleSignOut() {
+    if (isSigningOut) return;
+
     setErrorMessage("");
     setIsSigningOut(true);
 
@@ -19,7 +25,7 @@ export function AdminSignOutButton() {
 
       if (error) {
         console.error("Sign-out failed:", error.message);
-        setErrorMessage("La déconnexion a échoué. Réessaie.");
+        setErrorMessage("Unable to sign out. Please try again.");
         return;
       }
 
@@ -27,7 +33,7 @@ export function AdminSignOutButton() {
       router.refresh();
     } catch (error) {
       console.error("Unexpected sign-out error:", error);
-      setErrorMessage("Impossible de terminer la déconnexion.");
+      setErrorMessage("Something went wrong. Please try again.");
     } finally {
       setIsSigningOut(false);
     }
@@ -40,13 +46,15 @@ export function AdminSignOutButton() {
           {errorMessage}
         </p>
       )}
+
       <button
         type="button"
         onClick={handleSignOut}
         disabled={isSigningOut}
-        className="inline-flex h-10 items-center justify-center rounded-lg border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#E4D9CE] bg-transparent px-4 py-2 text-sm font-medium text-[#3B2418] transition-colors hover:bg-[#F3EAE0] disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isSigningOut ? "Déconnexion…" : "Se déconnecter"}
+        <LogOut size={16} />
+        {isSigningOut ? "Signing out..." : "Log out"}
       </button>
     </div>
   );
