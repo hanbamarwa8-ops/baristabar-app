@@ -12,15 +12,17 @@ import { LogoutButton } from "@/components/molecules/LogoutButton/LogoutButton";
 import { useCart } from "@/components/providers/CartProvider";
 import { createClient } from "@/lib/supabase/client";
 
-const shopCategories = [
-  { label: "Coffee Beans", href: "/categories/coffee-beans" },
-  { label: "Ground Coffee", href: "/categories/ground-coffee" },
-  { label: "Coffee Capsules", href: "/categories/coffee-capsules" },
-  { label: "Syrups & Flavours", href: "/categories/syrups-flavours" },
-  { label: "Accessories", href: "/categories/accessories" },
-  { label: "Coffee Machines", href: "/categories/coffee-machines" },
-  { label: "Gift Boxes", href: "/categories/gift-boxes" },
-];
+type ShopCategory = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
+type PublicCategoriesResponse = {
+  success: boolean;
+  data?: ShopCategory[];
+  message?: string;
+};
 
 const navigationLinkClass =
   "text-sm font-medium text-[#3B2418] transition-colors duration-200 hover:text-[#8A6B55]";
@@ -37,11 +39,53 @@ export function Navbar() {
   const [mobileShopOpen, setMobileShopOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [shopCategories, setShopCategories] = useState<ShopCategory[]>([]);
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Charge les catégories actives depuis PostgreSQL via l'API publique.
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadShopCategories() {
+      try {
+        const response = await fetch("/api/categories", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Categories request failed (${response.status}).`);
+        }
+
+        const result = (await response.json()) as PublicCategoriesResponse;
+
+        if (!result.success || !Array.isArray(result.data)) {
+          throw new Error(result.message || "Invalid categories response.");
+        }
+
+        if (mounted) {
+          setShopCategories(result.data);
+        }
+      } catch (error) {
+        console.error("Unable to load navigation categories:", error);
+
+        if (mounted) {
+          setShopCategories([]);
+        }
+      }
+    }
+
+    void loadShopCategories();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Synchronise l'état de connexion avec Supabase.
   useEffect(() => {
@@ -178,12 +222,12 @@ export function Navbar() {
 
                 {shopCategories.map((category) => (
                   <Link
-                    key={category.href}
-                    href={category.href}
+                    key={category.id}
+                    href={`/categories/${category.slug}`}
                     onClick={() => setShopOpen(false)}
                     className="block rounded-lg px-4 py-2.5 text-sm text-[#665044] transition-colors hover:bg-[#E8DED4] hover:text-[#3B2418]"
                   >
-                    {category.label}
+                    {category.name}
                   </Link>
                 ))}
               </div>
@@ -409,12 +453,12 @@ export function Navbar() {
 
                 {shopCategories.map((category) => (
                   <Link
-                    key={category.href}
-                    href={category.href}
+                    key={category.id}
+                    href={`/categories/${category.slug}`}
                     onClick={closeMobileMenu}
                     className="block rounded-lg px-3 py-2.5 text-sm text-[#665044] transition-colors hover:bg-[#3B2418]/5"
                   >
-                    {category.label}
+                    {category.name}
                   </Link>
                 ))}
               </div>

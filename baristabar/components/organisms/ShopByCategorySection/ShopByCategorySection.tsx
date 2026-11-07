@@ -1,58 +1,37 @@
 import Image from "next/image";
 import Link from "next/link";
 
-const categories = [
-  {
-    name: "Coffee Beans",
-    href: "/categories/coffee-beans",
-    image: "/01_Lavazza_Qualita_Oro.png",
-    imageAlt: "Café en grains Lavazza Qualità Oro",
-  },
-  {
-    name: "Ground Coffee",
-    href: "/categories/ground-coffee",
-    image: "/09_Lavazza_Qualita_Rossa_250g.png",
-    imageAlt: "Café moulu Lavazza Qualità Rossa",
-  },
-  {
-    name: "Coffee Capsules",
-    href: "/categories/coffee-capsules",
-    image: "/10_Lavazza_Rossa_Capsules.png",
-    imageAlt: "Capsules de café Lavazza",
-  },
-  {
-    name: "Syrups & Flavours",
-    href: "/categories/syrups-flavours",
-    image: "/06_Monin_Vanilla.png",
-    imageAlt: "Sirop Monin à la vanille",
-  },
-  {
-    name: "Accessories",
-    href: "/categories/accessories",
-    image: "/06_Coffee_Corner_Accessories.png",
-    imageAlt: "Accessoires pour préparer le café",
-  },
-  {
-    name: "Coffee Machines",
-    href: "/categories/coffee-machines",
-    image: "/03_DeLonghi_Dedica_White.png",
-    imageAlt: "Machine à espresso DeLonghi",
-  },
-  {
-    name: "BeanBox Packs",
-    href: "/#beanbox",
-    image: "/13_Lavazza_Espresso_Maestro.png",
-    imageAlt: "Sélection de cafés pour les packs BeanBox",
-  },
-  {
-    name: "Gift Boxes",
-    href: "/categories/gift-boxes",
-    image: "/12_Nespresso_Volluto_Set.png",
-    imageAlt: "Sélection de produits de café à offrir",
-  },
-];
+import {
+  findActiveCategories,
+  type CategoryRecord,
+} from "@/lib/categories-repository";
 
-export function ShopByCategorySection() {
+export async function ShopByCategorySection() {
+  let categories: CategoryRecord[] = [];
+
+  try {
+    categories = await findActiveCategories();
+  } catch (error) {
+    console.error("Unable to load homepage categories:", error);
+  }
+
+  const categoryCards = [
+    ...categories.map((category) => ({
+      id: category.id,
+      name: category.name,
+      href: `/categories/${category.slug}`,
+      image: category.image_url || "/coffee-origins.jpg",
+      imageAlt: category.name,
+    })),
+    {
+      id: "beanbox-packs",
+      name: "BeanBox Packs",
+      href: "/#beanbox",
+      image: "/13_Lavazza_Espresso_Maestro.png",
+      imageAlt: "Coffee selection for BeanBox packs",
+    },
+  ];
+
   return (
     <section
       id="shop-by-category"
@@ -73,29 +52,29 @@ export function ShopByCategorySection() {
           </h2>
 
           <p className="mt-4 max-w-xl text-sm leading-7 text-[#795A46] sm:text-base">
-            Discover coffee, equipment and little pleasures
-            for every moment of your coffee ritual.
+            Discover coffee, equipment and little pleasures for every moment of
+            your coffee ritual.
           </p>
         </header>
 
         <div className="mt-10 grid grid-cols-1 gap-5 sm:mt-12 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {categories.map((category) => (
+          {categoryCards.map((category, index) => (
             <Link
-              key={category.name}
+              key={category.id}
               href={category.href}
               aria-label={`Explore ${category.name}`}
               className="group relative isolate block aspect-3/4 overflow-hidden rounded-[10px] bg-[#D8C6B1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#795A46] focus-visible:ring-offset-4"
             >
               <Image
-              src={category.image}
-              alt={category.imageAlt}
-              fill
-              loading={
-                category.image === "/09_Lavazza_Qualita_Rossa_250g.png"
-                ? "eager"
-                : "lazy"}
+                src={category.image}
+                alt={category.imageAlt}
+                fill
+                unoptimized
+                loading={index === 0 ? "eager" : "lazy"}
                 sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, (max-width: 1279px) 33vw, 25vw"
-                className="object-cover object-center"/>
+                className="object-cover object-center"
+              />
+
               <div
                 aria-hidden="true"
                 className="absolute inset-0 bg-linear-to-t from-[#1C100C]/80 via-[#1C100C]/10 to-transparent transition-colors duration-500 group-hover:from-[#1C100C]/90"

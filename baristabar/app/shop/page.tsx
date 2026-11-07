@@ -8,50 +8,16 @@ import {
   getProductImage,
   type Product,
 } from "@/lib/products";
+import {
+  findActiveCategories,
+  type CategoryRecord,
+} from "@/lib/categories-repository";
 
 interface ShopSearchParams {
   q?: string | string[];
   category?: string | string[];
   sort?: string | string[];
 }
-
-const categories = [
-  {
-    slug: "coffee-beans",
-    title: "Coffee Beans",
-    aliases: ["beans", "coffee beans", "cafe en grains"],
-  },
-  {
-    slug: "ground-coffee",
-    title: "Ground Coffee",
-    aliases: ["ground coffee", "cafe moulu"],
-  },
-  {
-    slug: "coffee-capsules",
-    title: "Coffee Capsules",
-    aliases: ["coffee capsules", "capsules"],
-  },
-  {
-    slug: "syrups-flavours",
-    title: "Syrups & Flavours",
-    aliases: ["syrups and flavours", "syrups flavours", "sirop", "sirops"],
-  },
-  {
-    slug: "accessories",
-    title: "Accessories",
-    aliases: ["accessories", "accessoires"],
-  },
-  {
-    slug: "coffee-machines",
-    title: "Coffee Machines",
-    aliases: ["coffee machines", "machines a cafe"],
-  },
-  {
-    slug: "gift-boxes",
-    title: "Gift Boxes",
-    aliases: ["gift boxes", "coffrets cadeaux", "coffrets"],
-  },
-] as const;
 
 function normalize(value: string): string {
   return value
@@ -67,17 +33,19 @@ function getParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
 
-function findCategory(value: string) {
+function findCategory(
+  categories: CategoryRecord[],
+  value: string,
+): CategoryRecord | undefined {
+  if (!value.trim()) return undefined;
+
   const normalizedValue = normalize(value);
   const slugValue = value.trim().toLowerCase();
 
   return categories.find(
     (category) =>
-      category.slug === slugValue ||
-      normalize(category.title) === normalizedValue ||
-      category.aliases.some(
-        (alias) => normalize(alias) === normalizedValue,
-      ),
+      category.slug.toLowerCase() === slugValue ||
+      normalize(category.name) === normalizedValue,
   );
 }
 
@@ -92,25 +60,29 @@ export default async function ShopPage({
   const categoryParam = getParam(params.category);
   const sortParam = getParam(params.sort);
 
-  const selectedCategory = findCategory(categoryParam);
-
   let allProducts: Product[] = [];
+  let categories: CategoryRecord[] = [];
   let catalogueError = false;
 
   try {
-    // Supabase supplies the catalogue through the shared Express API.
-    allProducts = await getProductsFromDatabase();
+    [allProducts, categories] = await Promise.all([
+      getProductsFromDatabase(),
+      findActiveCategories(),
+    ]);
   } catch (error) {
-    console.error("Unable to load the product catalogue:", error);
+    console.error("Unable to load the shop catalogue:", error);
     catalogueError = true;
   }
 
+  const selectedCategory = findCategory(categories, categoryParam);
   const normalizedQuery = normalize(query);
 
   let products = allProducts.filter((product) => {
     const matchesCategory =
       !selectedCategory ||
-      normalize(product.category) === normalize(selectedCategory.title);
+      (product.category_id
+        ? product.category_id === selectedCategory.id
+        : normalize(product.category) === normalize(selectedCategory.name));
 
     const searchableText = normalize(
       [
@@ -122,8 +94,7 @@ export default async function ShopPage({
     );
 
     const matchesSearch =
-      !normalizedQuery ||
-      searchableText.includes(normalizedQuery);
+      !normalizedQuery || searchableText.includes(normalizedQuery);
 
     return matchesCategory && matchesSearch;
   });
@@ -133,13 +104,14 @@ export default async function ShopPage({
   } else if (sortParam === "price-desc") {
     products = [...products].sort((a, b) => b.price - a.price);
   } else if (sortParam === "name-asc") {
-    products = [...products].sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
+    products = [...products].sort((a, b) => a.name.localeCompare(b.name));
   }
 
   const allProductsActive = !selectedCategory;
-  const pageTitle = selectedCategory?.title ?? "All Products";
+  const pageTitle = selectedCategory?.name ?? "All Products";
+  const pageDescription =
+    selectedCategory?.description ||
+    "Discover our collection of carefully selected coffee, equipment and accessories, created to make every cup a little more special.";
 
   return (
     <>
@@ -160,15 +132,12 @@ export default async function ShopPage({
                 </h1>
 
                 <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-stone-600 sm:text-base">
-                  Discover our collection of carefully selected coffee,
-                  equipment and accessories, created to make every cup
-                  a little more special.
+                  {pageDescription}
                 </p>
               </div>
 
               <p className="mt-5 text-sm text-stone-500 sm:absolute sm:bottom-8 sm:right-0 sm:mt-0">
-                {products.length}{" "}
-                {products.length === 1 ? "product" : "products"}
+                {products.length} {products.length === 1 ? "product" : "products"}
               </p>
             </header>
           </div>
@@ -194,12 +163,11 @@ export default async function ShopPage({
               </Link>
 
               {categories.map((category) => {
-                const isActive =
-                  selectedCategory?.slug === category.slug;
+                const isActive = selectedCategory?.id === category.id;
 
                 return (
                   <Link
-                    key={category.slug}
+                    key={category.id}
                     href={`/categories/${category.slug}`}
                     aria-current={isActive ? "page" : undefined}
                     className={`shrink-0 rounded-full border px-5 py-3 text-sm transition-colors duration-200 ${
@@ -208,7 +176,7 @@ export default async function ShopPage({
                         : "border-[#E8DFD5] bg-white text-stone-600 hover:border-[#3B2418] hover:text-[#3B2418]"
                     }`}
                   >
-                    {category.title}
+                    {category.name}
                   </Link>
                 );
               })}
@@ -261,7 +229,7 @@ export default async function ShopPage({
                   <input
                     type="hidden"
                     name="category"
-                    value={categoryParam}
+                    value={selectedCategory?.slug ?? categoryParam}
                   />
                 )}
               </div>

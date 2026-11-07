@@ -4,51 +4,17 @@ import { notFound } from "next/navigation";
 import { Navbar } from "@/components/organisms/Navbar/Navbar";
 import { Footer } from "@/components/organisms/Footer/Footer";
 import { FeaturedProductCard } from "@/components/molecules/FeaturedProductCard";
+
 import {
   getProductImage,
   getProductsFromDatabase,
   type Product,
 } from "@/lib/products";
 
-const categories = {
-  "coffee-beans": {
-    title: "Coffee Beans",
-    description:
-      "Discover exceptional coffee beans from distinctive origins, selected for their aroma, character and flavour.",
-  },
-  "ground-coffee": {
-    title: "Ground Coffee",
-    description:
-      "Explore carefully selected ground coffees for a rich and satisfying cup, prepared your way.",
-  },
-  "coffee-capsules": {
-    title: "Coffee Capsules",
-    description:
-      "Enjoy convenient coffee capsules with rich aromas and the quality you expect from every cup.",
-  },
-  "syrups-flavours": {
-    title: "Syrups & Flavours",
-    description:
-      "Bring a new dimension to your coffee with delicious flavours for your favourite drinks.",
-  },
-  accessories: {
-    title: "Accessories",
-    description:
-      "Discover practical tools and thoughtful details that make preparing and enjoying coffee even better.",
-  },
-  "coffee-machines": {
-    title: "Coffee Machines",
-    description:
-      "Explore equipment for preparing espresso and creating your own coffee ritual at home.",
-  },
-  "gift-boxes": {
-    title: "Gift Boxes",
-    description:
-      "Find thoughtful coffee gifts for sharing special moments with the people who matter.",
-  },
-} as const;
-
-type CategorySlug = keyof typeof categories;
+import {
+  findActiveCategories,
+  type CategoryRecord,
+} from "@/lib/categories-repository";
 
 function normalize(value: string): string {
   return value
@@ -65,35 +31,52 @@ export default async function CategoryPage({
 }: {
   params: Promise<{ category: string }>;
 }) {
-  const { category } = await params;
+  const { category: categorySlug } = await params;
 
-  if (!Object.prototype.hasOwnProperty.call(categories, category)) {
+  let categories: CategoryRecord[] = [];
+  let categoriesError = false;
+
+  try {
+    categories = await findActiveCategories();
+  } catch (error) {
+    console.error("Unable to load storefront categories:", error);
+    categoriesError = true;
+  }
+
+  const categoryInfo = categories.find(
+    (item) => item.slug === categorySlug,
+  );
+
+  // An unknown or inactive category returns a 404.
+  if (!categoriesError && !categoryInfo) {
     notFound();
   }
 
-  const categoryInfo = categories[category as CategorySlug];
-
   let allProducts: Product[] = [];
-  let catalogueError = false;
+  let productsError = false;
 
   try {
     allProducts = await getProductsFromDatabase();
   } catch (error) {
     console.error("Unable to load category products:", error);
-    catalogueError = true;
+    productsError = true;
   }
 
-  const products = allProducts.filter(
-    (product) =>
-      normalize(product.category) === normalize(categoryInfo.title),
-  );
+  // Filter products by category ID.
+  // Legacy products without category_id use the category name as fallback.
+  const products = categoryInfo
+    ? allProducts.filter((product) => {
+        if (product.category_id) {
+          return product.category_id === categoryInfo.id;
+        }
 
-  const categoryLinks = Object.entries(categories).map(
-    ([slug, info]) => ({
-      slug,
-      title: info.title,
-    }),
-  );
+        return (
+          normalize(product.category) === normalize(categoryInfo.name)
+        );
+      })
+    : [];
+
+  const catalogueError = categoriesError || productsError;
 
   return (
     <>
@@ -110,23 +93,27 @@ export default async function CategoryPage({
                 </p>
 
                 <h1 className="mt-4 font-serif text-4xl leading-[1.08] tracking-tight text-[#3B2418] sm:text-5xl lg:text-6xl">
-                  {categoryInfo.title}
+                  {categoryInfo?.name ??
+                    "Collection temporarily unavailable"}
                 </h1>
 
                 <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-stone-600 sm:text-base">
-                  {categoryInfo.description}
+                  {categoryInfo?.description ||
+                    "Discover our carefully selected products for your coffee ritual."}
                 </p>
               </div>
 
-              <p className="mt-5 text-sm text-stone-500 sm:absolute sm:bottom-8 sm:right-0 sm:mt-0">
-                {products.length}{" "}
-                {products.length === 1 ? "product" : "products"}
-              </p>
+              {!catalogueError && (
+                <p className="mt-5 text-sm text-stone-500 sm:absolute sm:bottom-8 sm:right-0 sm:mt-0">
+                  {products.length}{" "}
+                  {products.length === 1 ? "product" : "products"}
+                </p>
+              )}
             </header>
           </div>
         </section>
 
-        {/* All Products and category navigation */}
+        {/* Dynamic category navigation */}
         <section className="px-5 py-5 sm:px-8 lg:px-12">
           <div className="mx-auto max-w-360">
             <nav
@@ -140,12 +127,12 @@ export default async function CategoryPage({
                 All Products
               </Link>
 
-              {categoryLinks.map((item) => {
-                const isActive = item.slug === category;
+              {categories.map((item) => {
+                const isActive = item.slug === categorySlug;
 
                 return (
                   <Link
-                    key={item.slug}
+                    key={item.id}
                     href={`/categories/${item.slug}`}
                     aria-current={isActive ? "page" : undefined}
                     className={`shrink-0 rounded-full border px-5 py-3 text-sm transition-colors duration-200 ${
@@ -154,7 +141,7 @@ export default async function CategoryPage({
                         : "border-[#E8DFD5] bg-white text-stone-600 hover:border-[#3B2418] hover:text-[#3B2418]"
                     }`}
                   >
-                    {item.title}
+                    {item.name}
                   </Link>
                 );
               })}
@@ -172,12 +159,11 @@ export default async function CategoryPage({
                 </p>
 
                 <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-stone-500">
-                  We could not load this collection. Please check your
-                  connection and try again.
+                  We could not load this collection. Please try again in a moment.
                 </p>
 
                 <Link
-                  href={`/categories/${category}`}
+                  href={`/categories/${categorySlug}`}
                   className="mt-6 inline-flex items-center gap-2 border-b border-[#3B2418]/40 pb-2 text-sm font-medium text-[#3B2418] transition-colors hover:border-[#3B2418]"
                 >
                   Try again
