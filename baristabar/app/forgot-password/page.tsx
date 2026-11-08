@@ -1,17 +1,23 @@
-
 "use client";
 
-import { FormEvent, useState } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Mail, ShieldCheck } from "lucide-react";
 
 import { Logo } from "@/components/atoms/Logo";
 import { createClient } from "@/lib/supabase/client";
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordContent() {
+  const searchParams = useSearchParams();
+  const isAdminContext = searchParams.get("context") === "admin";
+
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const loginHref = isAdminContext ? "/admin/login" : "/sign-in";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,71 +30,125 @@ export default function ForgotPasswordPage() {
     try {
       const supabase = createClient();
 
+      let redirectTo: string;
+
+      if (isAdminContext) {
+        const callbackUrl = new URL(
+          "/auth/callback",
+          window.location.origin,
+        );
+
+        callbackUrl.searchParams.set(
+          "next",
+          "/admin/reset-password",
+        );
+
+        redirectTo = callbackUrl.toString();
+      } else {
+        // Le parcours client existant est conservé.
+        redirectTo = `${window.location.origin}/reset-password`;
+      }
+
       const { error } = await supabase.auth.resetPasswordForEmail(
         email.trim(),
-        {
-          redirectTo: `${window.location.origin}/reset-password`,
-        },
+        { redirectTo },
       );
 
       if (error) {
         setErrorMessage(
-          "Unable to send the reset email. Please try again.",
+          "Impossible d'envoyer le lien pour le moment. Réessaie.",
         );
         return;
       }
 
       setSent(true);
     } catch {
-      setErrorMessage("Something went wrong. Please try again.");
+      setErrorMessage(
+        "Une erreur est survenue. Vérifie ta connexion et réessaie.",
+      );
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#F8F5F0] px-4 py-12 text-[#3B2418]">
-      <section className="w-full max-w-md rounded-2xl border border-[#E4D9CE] bg-white p-6 shadow-sm sm:p-9">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#F8F5F0] px-4 py-12 text-[#3B2418]">
+      {/* Décoration d'arrière-plan */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -left-32 -top-32 h-80 w-80 rounded-full bg-[#E8DED4]/50 blur-3xl"
+      />
+
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-40 -right-24 h-96 w-96 rounded-full bg-[#D8CABC]/30 blur-3xl"
+      />
+
+      <section className="relative w-full max-w-115 rounded-[28px] border border-[#E4D9CE] bg-white/95 p-6 shadow-[0_20px_70px_rgba(59,36,24,0.09)] backdrop-blur-sm sm:p-9">
+        {/* Logo */}
         <div className="mb-8 flex justify-center">
           <Logo />
         </div>
 
         {!sent ? (
           <>
+            {/* En-tête */}
             <div className="mb-7 text-center">
-              <h1 className="text-3xl font-semibold tracking-tight">
-                Forgot password?
+              <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#E8DED4] text-[#3B2418]">
+                {isAdminContext ? (
+                  <ShieldCheck size={27} strokeWidth={1.6} />
+                ) : (
+                  <Mail size={25} strokeWidth={1.6} />
+                )}
+              </div>
+
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8A6B55]">
+                {isAdminContext
+                  ? "Administration BaristaBar"
+                  : "BaristaBar Account"}
+              </p>
+
+              <h1 className="mt-3 text-3xl font-semibold tracking-tight">
+                Mot de passe oublié ?
               </h1>
+
               <p className="mt-3 text-sm leading-6 text-[#806F63]">
-                Enter your email address and we will send you a link
-                to reset your password.
+                {isAdminContext
+                  ? "Saisis l'adresse e-mail de ton compte administrateur. Nous t'enverrons un lien pour créer un nouveau mot de passe."
+                  : "Saisis ton adresse e-mail. Nous t'enverrons un lien pour réinitialiser ton mot de passe."}
               </p>
             </div>
 
+            {/* Formulaire */}
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label
-                  htmlFor="email"
-                  className="mb-2 block text-sm font-medium"
+                  htmlFor="forgot-email"
+                  className="block text-sm font-medium text-[#3B2418]"
                 >
-                  Email address
+                  Adresse e-mail
                 </label>
 
                 <input
-                  id="email"
+                  id="forgot-email"
                   name="email"
                   type="email"
                   autoComplete="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   required
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@example.com"
-                  className="w-full rounded-lg border border-[#D8CABC] bg-[#FDFBF8] px-4 py-3 text-sm outline-none transition focus:border-[#8A6B55] focus:ring-2 focus:ring-[#8A6B55]/15"
+                  placeholder="admin@exemple.com"
+                  className="mt-2 h-12 w-full rounded-xl border border-[#D8CABC] bg-[#FDFBF8] px-4 text-sm text-[#3B2418] outline-none transition placeholder:text-[#9A8577] focus:border-[#8A6B55] focus:ring-4 focus:ring-[#8A6B55]/10"
                 />
               </div>
 
               {errorMessage && (
-                <p role="alert" className="text-sm text-red-700">
+                <p
+                  role="alert"
+                  className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-5 text-red-800"
+                >
                   {errorMessage}
                 </p>
               )}
@@ -96,45 +156,77 @@ export default function ForgotPasswordPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-full bg-[#3B2418] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#684733] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-12 w-full items-center justify-center rounded-full bg-[#3B2418] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#684733] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loading ? "Sending..." : "Send reset link"}
+                {loading
+                  ? "Envoi en cours..."
+                  : "Envoyer le lien de réinitialisation"}
               </button>
             </form>
           </>
         ) : (
-          <div className="text-center">
-            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#E8DED4]">
-              <span className="text-2xl" aria-hidden="true">✉</span>
+          /* Confirmation d'envoi */
+          <div className="text-center" aria-live="polite">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#E8DED4] text-[#3B2418]">
+              <Mail size={29} strokeWidth={1.6} />
             </div>
 
-            <h1 className="text-2xl font-semibold">Check your email</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Vérifie ta boîte e-mail
+            </h1>
 
-            <p className="mt-3 text-sm leading-6 text-[#806F63]">
-              If an account matches this email address, a password
-              reset link will be sent. Check your inbox and spam folder.
+            <p className="mt-4 text-sm leading-6 text-[#806F63]">
+              Si un compte correspond à cette adresse, tu recevras un
+              lien de réinitialisation. Vérifie également ton dossier
+              des courriers indésirables.
             </p>
 
             <button
               type="button"
-              onClick={() => setSent(false)}
-              className="mt-5 text-sm font-medium text-[#8A6B55] hover:underline"
+              onClick={() => {
+                setSent(false);
+                setErrorMessage("");
+              }}
+              className="mt-6 text-sm font-medium text-[#8A6B55] transition-colors hover:text-[#3B2418] hover:underline"
             >
-              Try another email
+              Utiliser une autre adresse e-mail
             </button>
           </div>
         )}
 
-        <p className="mt-7 text-center text-sm text-[#806F63]">
-          Remember your password?{" "}
+        {/* Retour à la connexion */}
+        <div className="mt-8 border-t border-[#E8DED4] pt-5 text-center">
           <Link
-            href="/sign-in"
-            className="font-semibold text-[#3B2418] hover:underline"
+            href={loginHref}
+            className="text-sm font-medium text-[#806F63] transition-colors hover:text-[#3B2418]"
           >
-            Sign in
+            {isAdminContext
+              ? "Retour à la connexion administrateur"
+              : "Retour à la connexion"}
           </Link>
-        </p>
+        </div>
       </section>
     </main>
+  );
+}
+
+function ForgotPasswordFallback() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#F8F5F0] px-4">
+      <div className="rounded-2xl border border-[#E4D9CE] bg-white p-8 text-center">
+        <Logo />
+        <p className="mt-5 text-sm text-[#806F63]">
+          Chargement...
+        </p>
+      </div>
+    </main>
+  );
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={<ForgotPasswordFallback />}>
+      <ForgotPasswordContent />
+    </Suspense>
   );
 }

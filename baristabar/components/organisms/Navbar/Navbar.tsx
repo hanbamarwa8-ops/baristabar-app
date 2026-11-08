@@ -1,14 +1,16 @@
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ShieldCheck } from "lucide-react";
 
 import { Logo } from "@/components/atoms/Logo";
 import { Icon } from "@/components/atoms/Icon";
 import { NavItem } from "@/components/molecules/NavItem";
 import { LogoutButton } from "@/components/molecules/LogoutButton/LogoutButton";
+import { AdminAccessModal } from "@/components/organisms/AdminAccessModal/AdminAccessModal";
 import { useCart } from "@/components/providers/CartProvider";
 import { createClient } from "@/lib/supabase/client";
 
@@ -44,6 +46,13 @@ export function Navbar() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
+  // État de la fenêtre de connexion administrateur.
+  const [adminAccessOpen, setAdminAccessOpen] = useState(false);
+
+  const closeAdminAccessModal = useCallback(() => {
+    setAdminAccessOpen(false);
+  }, []);
+
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Charge les catégories actives depuis PostgreSQL via l'API publique.
@@ -62,7 +71,8 @@ export function Navbar() {
           throw new Error(`Categories request failed (${response.status}).`);
         }
 
-        const result = (await response.json()) as PublicCategoriesResponse;
+        const result =
+          (await response.json()) as PublicCategoriesResponse;
 
         if (!result.success || !Array.isArray(result.data)) {
           throw new Error(result.message || "Invalid categories response.");
@@ -321,6 +331,19 @@ export function Navbar() {
             )}
           </Link>
 
+          {/* Accès administrateur */}
+          <button
+            type="button"
+            onClick={() => setAdminAccessOpen(true)}
+            aria-label="Ouvrir la connexion administrateur"
+            aria-haspopup="dialog"
+            aria-expanded={adminAccessOpen}
+            title="Espace administrateur"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#3B2418] transition-colors duration-200 hover:bg-[#3B2418]/10 hover:text-[#8A6B55]"
+          >
+            <ShieldCheck size={19} strokeWidth={1.7} />
+          </button>
+
           {/* Authentification desktop */}
           {!authLoading && (
             <div
@@ -490,6 +513,18 @@ export function Navbar() {
               Cart {itemCount > 0 && `(${itemCount})`}
             </Link>
 
+            {/* Accès administrateur mobile */}
+            <button
+              type="button"
+              onClick={() => setAdminAccessOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={adminAccessOpen}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-semibold text-[#3B2418] transition-colors hover:bg-[#3B2418]/5"
+            >
+              <ShieldCheck size={18} strokeWidth={1.7} />
+              Espace administrateur
+            </button>
+
             {/* Authentification mobile */}
             {!authLoading &&
               (isAuthenticated ? (
@@ -518,6 +553,12 @@ export function Navbar() {
           </div>
         </nav>
       )}
+
+      {/* Fenêtre de connexion administrateur */}
+      <AdminAccessModal
+        isOpen={adminAccessOpen}
+        onClose={closeAdminAccessModal}
+      />
     </header>
   );
 }
