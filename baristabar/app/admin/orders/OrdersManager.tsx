@@ -1,14 +1,14 @@
-
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Clock3,
   CreditCard,
@@ -70,11 +70,55 @@ type AdminOrder = {
   items: OrderItem[];
 };
 
+type OrdersPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+};
+
+type OrdersStatistics = {
+  total: number;
+  pending: number;
+  confirmed: number;
+  processing: number;
+  shipped: number;
+  delivered: number;
+  cancelled: number;
+  revenue: string;
+};
+
 type OrdersResponse = {
   success: boolean;
   data?: AdminOrder[];
+  pagination?: OrdersPagination;
+  statistics?: OrdersStatistics;
   message?: string;
 };
+
+const EMPTY_PAGINATION: OrdersPagination = {
+  page: 1,
+  limit: 25,
+  total: 0,
+  totalPages: 0,
+  hasPreviousPage: false,
+  hasNextPage: false,
+};
+
+const EMPTY_STATISTICS: OrdersStatistics = {
+  total: 0,
+  pending: 0,
+  confirmed: 0,
+  processing: 0,
+  shipped: 0,
+  delivered: 0,
+  cancelled: 0,
+  revenue: "0",
+};
+
+const ORDERS_PAGE_SIZE = 25;
 
 type StatusUpdateResponse = {
   success?: boolean;
@@ -206,49 +250,6 @@ function paymentMethodLabel(method: string): string {
   };
 
   return labels[method] ?? method;
-}
-
-function getSearchableText(order: AdminOrder): string {
-  return [
-    order.id,
-    order.customerName,
-    order.customerEmail,
-    order.customerPhone,
-    order.shippingAddress,
-    order.shippingCity,
-    order.shippingGovernorate ?? "",
-    ...(order.items ?? []).map((item) => item.name),
-  ]
-    .join(" ")
-    .toLowerCase();
-}
-
-function isWithinDateFilter(
-  dateValue: string,
-  filter: DateFilter,
-): boolean {
-  if (filter === "all") {
-    return true;
-  }
-
-  const orderDate = new Date(dateValue);
-
-  if (Number.isNaN(orderDate.getTime())) {
-    return false;
-  }
-
-  const now = new Date();
-
-  if (filter === "today") {
-    return orderDate.toDateString() === now.toDateString();
-  }
-
-  const days = filter === "7days" ? 7 : 30;
-  const startDate = new Date(now);
-
-  startDate.setDate(startDate.getDate() - days);
-
-  return orderDate >= startDate && orderDate <= now;
 }
 
 function getOrderProgress(status: string): number {
@@ -396,6 +397,12 @@ export function OrdersManager() {
   const router = useRouter();
 
   const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [pagination, setPagination] =
+    useState<OrdersPagination>(EMPTY_PAGINATION);
+  const [statistics, setStatistics] =
+    useState<OrdersStatistics>(EMPTY_STATISTICS);
+  const [page, setPage] = useState(1);
+  const [refreshVersion, setRefreshVersion] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -440,57 +447,98 @@ export function OrdersManager() {
     return session.access_token;
   }, [handleAuthorizationFailure]);
 
-  const loadOrders = useCallback(async () => {
-    setIsLoading(true);
-    setErrorMessage(null);
+  const loadOrders = useCallback(
+    async (signal?: AbortSignal) => {
+      setIsLoading(true);
+      setErrorMessage(null);
 
-    try {
-      const accessToken = await getAccessToken();
+      try {
+        const accessToken = await getAccessToken();
 
-      if (!accessToken) {
-        return;
-      }
+        if (!accessToken || signal?.aborted) {
+          return;
+        }
 
-      const response = await fetch("/api/admin/orders", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        cache: "no-store",
-      });
+        const query = new URLSearchParams({
+          page: String(page),
+          limit: String(ORDERS_PAGE_SIZE),
+          search: search.trim(),
+          status: statusFilter,
+          date: dateFilter,
+        });
 
-      if (response.status === 401 || response.status === 403) {
-        handleAuthorizationFailure(response.status);
-        return;
-      }
-
-      const result = (await response.json().catch(() => null)) as
-        | OrdersResponse
-        | null;
-
-      if (
-        !response.ok ||
-        result?.success !== true ||
-        !Array.isArray(result.data)
-      ) {
-        setErrorMessage(
-          result?.message ??
-            "Unable to load orders. Please try again.",
+        const response = await fetch(
+          `/api/admin/orders?${query.toString()}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+            cache: "no-store",
+            signal,
+          },
         );
-        return;
+
+        if (signal?.aborted) {
+          return;
+        }
+
+        if (response.status === 401 || response.status === 403) {
+          handleAuthorizationFailure(response.status);
+          return;
+        }
+
+        const result = (await response.json().catch(() => null)) as
+          | OrdersResponse
+          | null;
+
+        if (
+          !response.ok ||
+          result?.success !== true ||
+          !Array.isArray(result.data) ||
+          !result.pagination ||
+          !result.statistics
+        ) {
+          setErrorMessage(
+            result?.message ??
+              "Unable to load orders. Please try again.",
+          );
+          return;
+        }
+
+        setOrders(result.data);
+        setPagination(result.pagination);
+        setStatistics(result.statistics);
+
+        // The API may clamp an out-of-range page after filtering.
+        if (result.pagination.page !== page) {
+          setPage(result.pagination.page);
+        }
+      } catch (error) {
+        if (signal?.aborted) {
+          return;
+        }
+
+        console.error("Failed to load admin orders:", error);
+
+        setErrorMessage(
+          "Unable to contact the server. Please check your connection.",
+        );
+      } finally {
+        if (!signal?.aborted) {
+          setIsLoading(false);
+        }
       }
-
-      setOrders(result.data);
-    } catch (error) {
-      console.error("Failed to load admin orders:", error);
-
-      setErrorMessage(
-        "Unable to contact the server. Please check your connection.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [getAccessToken, handleAuthorizationFailure]);
+    },
+    [
+      getAccessToken,
+      handleAuthorizationFailure,
+      page,
+      search,
+      statusFilter,
+      dateFilter,
+    ],
+  );
 
   const updateOrderStatus = useCallback(
     async (order: AdminOrder, newStatus: OrderStatus) => {
@@ -579,6 +627,9 @@ export function OrdersManager() {
             ? "Order cancelled. Stock was restored by the server."
             : `Order status updated: ${ORDER_STATUS_LABELS[updatedStatus]}.`,
         );
+
+        // Refresh the current page and global statistics after the update.
+        setRefreshVersion((currentVersion) => currentVersion + 1);
       } catch (error) {
         console.error("Failed to update order status:", error);
 
@@ -596,69 +647,27 @@ export function OrdersManager() {
     ],
   );
 
-  // Load orders after the component has mounted.
+  // Load server-filtered orders when the page or filters change.
+  // Search requests are debounced and obsolete requests are cancelled.
   useEffect(() => {
+    const controller = new AbortController();
+    const delay = search.trim() ? 300 : 0;
+
     const timer = window.setTimeout(() => {
-      void loadOrders();
-    }, 0);
+      void loadOrders(controller.signal);
+    }, delay);
 
-    return () => window.clearTimeout(timer);
-  }, [loadOrders]);
-
-  // Statistics are calculated from the orders returned by the API.
-  const statistics = useMemo(() => {
-    const count = (status: OrderStatus) =>
-      orders.filter((order) => order.status === status).length;
-
-    return {
-      total: orders.length,
-      pending: count("pending"),
-      confirmed: count("confirmed"),
-      processing: count("processing"),
-      shipped: count("shipped"),
-      delivered: count("delivered"),
-      cancelled: count("cancelled"),
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
     };
-  }, [orders]);
-
-  // Search and filters.
-  const filteredOrders = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-
-    return orders.filter((order) => {
-      const matchesSearch =
-        !normalizedSearch ||
-        getSearchableText(order).includes(normalizedSearch);
-
-      const matchesStatus =
-        statusFilter === "all" || order.status === statusFilter;
-
-      const matchesDate = isWithinDateFilter(
-        order.createdAt,
-        dateFilter,
-      );
-
-      return matchesSearch && matchesStatus && matchesDate;
-    });
-  }, [orders, search, statusFilter, dateFilter]);
-
-  // Sum of non-cancelled orders.
-  const totalRevenue = useMemo(
-    () =>
-      orders
-        .filter((order) => order.status !== "cancelled")
-        .reduce(
-          (total, order) => total + Number(order.total || 0),
-          0,
-        ),
-    [orders],
-  );
+  }, [loadOrders, search, refreshVersion]);
 
   const stats = [
     {
       label: "Total orders",
       value: statistics.total,
-      caption: "Latest 100",
+      caption: "All records",
       icon: ShoppingBag,
     },
     {
@@ -723,7 +732,9 @@ export function OrdersManager() {
 
         <button
           type="button"
-          onClick={() => void loadOrders()}
+          onClick={() =>
+            setRefreshVersion((currentVersion) => currentVersion + 1)
+          }
           disabled={isLoading || updatingOrderId !== null}
           className={secondaryButtonClassName}
         >
@@ -762,11 +773,11 @@ export function OrdersManager() {
             className="mt-1 text-3xl font-medium text-[#3B2418]"
             style={{ fontFamily: "var(--font-brand)" }}
           >
-            {formatMoney(totalRevenue)}
+            {formatMoney(statistics.revenue)}
           </h3>
 
           <p className="mt-1 text-xs text-[#795A46]">
-            Sum of non-cancelled orders in the latest 100 records.
+            Sum of non-cancelled orders across all records.
           </p>
         </div>
 
@@ -849,9 +860,8 @@ export function OrdersManager() {
               </h3>
 
               <p className="mt-1 text-sm text-[#9A8577]">
-                {filteredOrders.length} result
-                {filteredOrders.length === 1 ? "" : "s"} out of{" "}
-                {orders.length} orders.
+                {pagination.total} matching order
+                {pagination.total === 1 ? "" : "s"}.
               </p>
             </div>
 
@@ -866,7 +876,11 @@ export function OrdersManager() {
                 <input
                   type="search"
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setPage(1);
+                    setExpandedOrderId(null);
+                  }}
                   placeholder="Search orders, customers..."
                   aria-label="Search orders"
                   className="min-h-11 w-full rounded-full border border-[#E8DED4] bg-white py-2 pl-10 pr-4 text-sm text-[#3B2418] outline-none transition placeholder:text-[#A08D7E] focus:border-[#8A6B55] focus:ring-2 focus:ring-[#8A6B55]/10"
@@ -877,7 +891,11 @@ export function OrdersManager() {
               <div className="relative sm:min-w-44">
                 <select
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
+                  onChange={(event) => {
+                    setStatusFilter(event.target.value);
+                    setPage(1);
+                    setExpandedOrderId(null);
+                  }}
                   aria-label="Filter orders by status"
                   className={`${fieldClassName} appearance-none pr-10`}
                 >
@@ -900,9 +918,11 @@ export function OrdersManager() {
               <div className="relative sm:min-w-44">
                 <select
                   value={dateFilter}
-                  onChange={(event) =>
-                    setDateFilter(event.target.value as DateFilter)
-                  }
+                  onChange={(event) => {
+                    setDateFilter(event.target.value as DateFilter);
+                    setPage(1);
+                    setExpandedOrderId(null);
+                  }}
                   aria-label="Filter orders by date"
                   className={`${fieldClassName} appearance-none pr-10`}
                 >
@@ -928,57 +948,48 @@ export function OrdersManager() {
             <p className="text-sm text-[#8A7567]">Loading orders...</p>
           </div>
         ) : orders.length === 0 ? (
-          /* No orders */
+          /* No orders or no matching results */
           <div className="flex min-h-64 flex-col items-center justify-center px-5 py-12 text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#F3EAE1] text-[#795A46]">
-              <ShoppingBag size={25} />
+              {statistics.total === 0 ? (
+                <ShoppingBag size={25} />
+              ) : (
+                <Search size={24} />
+              )}
             </div>
 
             <h3
               className="mt-4 text-2xl font-medium text-[#3B2418]"
               style={{ fontFamily: "var(--font-brand)" }}
             >
-              No orders yet
+              {statistics.total === 0 ? "No orders yet" : "No matching orders"}
             </h3>
 
             <p className="mt-2 max-w-md text-sm leading-6 text-[#9A8577]">
-              New customer orders will appear here when they are
-              successfully saved.
-            </p>
-          </div>
-        ) : filteredOrders.length === 0 ? (
-          /* No filtered results */
-          <div className="flex min-h-64 flex-col items-center justify-center px-5 py-12 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#F3EAE1] text-[#795A46]">
-              <Search size={24} />
-            </div>
-
-            <h3
-              className="mt-4 text-2xl font-medium text-[#3B2418]"
-              style={{ fontFamily: "var(--font-brand)" }}
-            >
-              No matching orders
-            </h3>
-
-            <p className="mt-2 text-sm text-[#9A8577]">
-              Try another search or change your filters.
+              {statistics.total === 0
+                ? "New customer orders will appear here when they are successfully saved."
+                : "Try another search or change your filters."}
             </p>
 
-            <button
-              type="button"
-              onClick={() => {
-                setSearch("");
-                setStatusFilter("all");
-                setDateFilter("all");
-              }}
-              className={`${secondaryButtonClassName} mt-5`}
-            >
-              Clear filters
-            </button>
+            {statistics.total > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("all");
+                  setDateFilter("all");
+                  setPage(1);
+                  setExpandedOrderId(null);
+                }}
+                className={`${secondaryButtonClassName} mt-5`}
+              >
+                Clear filters
+              </button>
+            )}
           </div>
         ) : (
           <div className="divide-y divide-[#F0E7DE]">
-            {filteredOrders.map((order) => {
+            {orders.map((order) => {
               const isExpanded = expandedOrderId === order.id;
 
               const nextStatuses: OrderStatus[] = isOrderStatus(
@@ -1472,16 +1483,47 @@ export function OrdersManager() {
           </div>
         )}
 
-        {/* Footer */}
-        {!isLoading && orders.length > 0 && (
-          <div className="flex flex-col gap-2 border-t border-[#E8DED4] bg-[#FBF8F4] px-5 py-4 text-xs text-[#9A8577] sm:flex-row sm:items-center sm:justify-between sm:px-7">
-            <span>
-              Showing {filteredOrders.length} of {orders.length} loaded orders.
-            </span>
+        {/* Pagination */}
+        {!isLoading && pagination.total > 0 && (
+          <div className="flex flex-col gap-3 border-t border-[#E8DED4] bg-[#FBF8F4] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+            <div className="text-xs text-[#9A8577]">
+              <p>
+                Showing {orders.length} of {pagination.total} matching orders.
+              </p>
+              <p className="mt-1">
+                Page {pagination.page} of {pagination.totalPages}.
+              </p>
+            </div>
 
-            <span>
-              The API currently returns the latest 100 orders.
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setExpandedOrderId(null);
+                  setPage((currentPage) => Math.max(1, currentPage - 1));
+                }}
+                disabled={!pagination.hasPreviousPage || isLoading || updatingOrderId !== null}
+                className={secondaryButtonClassName}
+              >
+                <ChevronLeft size={15} />
+                Previous
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setExpandedOrderId(null);
+                  setPage((currentPage) =>
+                    Math.min(pagination.totalPages, currentPage + 1),
+                  );
+                }}
+                disabled={!pagination.hasNextPage || isLoading || updatingOrderId !== null}
+                className={secondaryButtonClassName}
+              >
+                Next
+                <ChevronRight size={15} />
+              </button>
+            </div>
           </div>
         )}
       </section>

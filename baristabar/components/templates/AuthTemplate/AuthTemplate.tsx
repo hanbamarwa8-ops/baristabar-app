@@ -1,4 +1,3 @@
-
 "use client";
 
 import Image from "next/image";
@@ -116,6 +115,7 @@ export function AuthTemplate({
         return;
       }
 
+      // Sign in
       const { data, error } =
         await supabase.auth.signInWithPassword({
           email: email.trim(),
@@ -129,8 +129,36 @@ export function AuthTemplate({
         return;
       }
 
-      const isAdmin =
-        data.user?.app_metadata?.role === "admin";
+      if (!data.user) {
+        showError(
+          "Unable to verify your account. Please try again.",
+        );
+        return;
+      }
+
+      // Verify the current role from PostgreSQL.
+      // profiles.role is the source of truth for administrator access.
+      const { data: profile, error: profileError } =
+        await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", data.user.id)
+          .maybeSingle();
+
+      if (profileError) {
+        console.error(
+          "Admin role verification failed:",
+          profileError,
+        );
+
+        showError(
+          "Your account is connected, but we could not verify your permissions. Please try again.",
+        );
+
+        return;
+      }
+
+      const isAdmin = profile?.role === "admin";
 
       router.replace(
         isAdmin ? "/admin" : nextPath ?? "/",

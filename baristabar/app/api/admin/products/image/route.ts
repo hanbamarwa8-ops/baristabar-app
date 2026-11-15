@@ -66,15 +66,17 @@ function resolveImagePath(
 
 export async function DELETE(request: Request) {
   try {
-    // Vérification de l'administrateur.
+    // 1. Vérification obligatoire de l'administrateur.
     const authResult = await requireAdminApi(request);
 
-    // En cas d'échec, requireAdminApi renvoie une réponse HTTP.
-    // En cas de succès, il renvoie { ok: true, userId }.
-    if (authResult instanceof NextResponse) {
-      return authResult;
+    // La fonction retourne un objet discriminé :
+    // { ok: true, userId } ou { ok: false, response }.
+    // En cas d'échec, arrêter immédiatement la requête.
+    if (!authResult.ok) {
+      return authResult.response;
     }
 
+    // 2. Récupérer le token vérifié pour l'appel Storage.
     const accessToken = getAccessToken(request);
 
     if (!accessToken) {
@@ -87,6 +89,7 @@ export async function DELETE(request: Request) {
       );
     }
 
+    // 3. Vérifier le corps de la requête.
     const body = await request.json().catch(() => null);
 
     if (
@@ -103,7 +106,9 @@ export async function DELETE(request: Request) {
       );
     }
 
+    // 4. Vérifier la configuration Supabase.
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
     const supabaseKey =
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -118,7 +123,11 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const imagePath = resolveImagePath(body.path, supabaseUrl);
+    // 5. Valider strictement le chemin de l'image.
+    const imagePath = resolveImagePath(
+      body.path,
+      supabaseUrl,
+    );
 
     if (!imagePath) {
       return NextResponse.json(
@@ -130,7 +139,8 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const normalizedSupabaseUrl = supabaseUrl.replace(/\/$/, "");
+    // 6. Construire les références de l'image.
+    const normalizedSupabaseUrl = supabaseUrl.replace(/\/+$/, "");
 
     const publicImageUrl =
       `${normalizedSupabaseUrl}/storage/v1/object/public/` +
@@ -139,16 +149,28 @@ export async function DELETE(request: Request) {
     const imagePathMarker =
       `/storage/v1/object/public/${BUCKET}/${imagePath}`;
 
-    // Vérifier qu'aucun produit n'utilise encore cette image.
+    // 7. Vérifier qu'aucun produit n'utilise encore cette image.
     const pool = getPool();
 
     const referenceResult = await pool.query<{ count: number }>(
       `
-        SELECT COUNT(*)::int AS count
-        FROM public.products
-        WHERE image_url = $1
-           OR image_url = $2
-           OR POSITION($3 IN image_url) > 0
+        SELECT (
+          (
+            SELECT COUNT(*)
+            FROM public.products
+            WHERE image_url = $1
+               OR image_url = $2
+               OR POSITION($3 IN image_url) > 0
+          )
+          +
+          (
+            SELECT COUNT(*)
+            FROM public.categories
+            WHERE image_url = $1
+               OR image_url = $2
+               OR POSITION($3 IN image_url) > 0
+          )
+        )::int AS count
       `,
       [publicImageUrl, imagePath, imagePathMarker],
     );
@@ -158,7 +180,7 @@ export async function DELETE(request: Request) {
         {
           success: false,
           message:
-            "Cette image est encore utilisée par un produit. " +
+          "Cette image est encore utilisée par un produit ou une catégorie."+
             "Elle ne peut pas être supprimée.",
           code: "IMAGE_IN_USE",
         },
@@ -166,7 +188,9 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Suppression dans Supabase Storage.
+    // 8. Supprimer l'image dans Supabase Storage.
+    // La politique RLS vérifie également le rôle administrateur.
+
     const storageResponse = await fetch(
       `${normalizedSupabaseUrl}/storage/v1/object/${BUCKET}`,
       {
@@ -202,6 +226,7 @@ export async function DELETE(request: Request) {
       );
     }
 
+    // 9. Retourner le résultat.
     return NextResponse.json({
       success: true,
       message: "Image supprimée avec succès.",

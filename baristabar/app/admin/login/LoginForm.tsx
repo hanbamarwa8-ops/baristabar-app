@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, type FormEvent } from "react";
@@ -27,6 +28,60 @@ export function LoginForm() {
     try {
       const supabase = createClient();
 
+      // 1. Vérifier si une session existe déjà.
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        setErrorMessage(
+          "Impossible de vérifier ta session. Réessaie.",
+        );
+        return;
+      }
+
+      // 2. Ne jamais remplacer silencieusement une session existante.
+      if (session?.user) {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          setErrorMessage(
+            "Impossible de vérifier ton compte actuel. Ta session n'a pas été volontairement déconnectée.",
+          );
+          return;
+        }
+
+        const { data: currentProfile, error: currentProfileError } =
+          await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", user.id)
+            .maybeSingle();
+
+        if (currentProfileError) {
+          setErrorMessage(
+            "Impossible de vérifier tes autorisations. Ta session actuelle est conservée.",
+          );
+          return;
+        }
+
+        if (currentProfile?.role === "admin") {
+          router.replace("/admin");
+          router.refresh();
+          return;
+        }
+
+        setErrorMessage(
+          "Une session client est déjà active. Pour utiliser un autre compte administrateur, déconnecte-toi volontairement de la boutique puis réessaie. Ta session actuelle reste conservée.",
+        );
+        return;
+      }
+
+      // 3. Aucune session : authentification avec les identifiants saisis.
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
@@ -39,32 +94,33 @@ export function LoginForm() {
         return;
       }
 
-      // Vérification préalable du rôle administrateur.
-      // La protection définitive reste assurée côté serveur par requireAdmin().
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", data.user.id)
-        .maybeSingle();
+      // 4. Vérifier le rôle depuis PostgreSQL.
+      const { data: profile, error: profileError } =
+        await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", data.user.id)
+          .maybeSingle();
 
+      // Aucun accès Admin si la vérification échoue.
+      // La session reste intacte.
       if (profileError) {
-        await supabase.auth.signOut();
-
         setErrorMessage(
-          "Impossible de vérifier les autorisations de ce compte. Réessaie.",
+          "Ton compte est connecté, mais nous ne pouvons pas vérifier tes autorisations. Ta session est conservée. Réessaie.",
         );
         return;
       }
 
+      // Un compte client ne peut pas accéder à l'administration.
+      // Aucune déconnexion automatique.
       if (profile?.role !== "admin") {
-        await supabase.auth.signOut();
-
         setErrorMessage(
-          "Ce compte ne possède pas les autorisations nécessaires pour accéder à l'administration.",
+          "Ce compte ne possède pas le rôle administrateur. Ta session client reste active et tu peux continuer à utiliser la boutique.",
         );
         return;
       }
 
+      // 5. Administrateur autorisé.
       router.replace("/admin");
       router.refresh();
     } catch {
@@ -139,14 +195,14 @@ export function LoginForm() {
             className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-[#806F63] transition-colors hover:bg-[#E8DED4] hover:text-[#3B2418]"
           >
             {showPassword ? (
-              <EyeOff size={18} />
+              <EyeOff size={19} strokeWidth={1.7} />
             ) : (
-              <Eye size={18} />
+              <Eye size={19} strokeWidth={1.7} />
             )}
           </button>
         </div>
 
-        {/* Mot de passe oublié : sous le champ */}
+        {/* Mot de passe oublié */}
         <div className="mt-2 flex justify-end">
           <Link
             href="/forgot-password?context=admin"
@@ -167,7 +223,7 @@ export function LoginForm() {
         </p>
       )}
 
-      {/* Bouton de connexion */}
+      {/* Connexion */}
       <button
         type="submit"
         disabled={isSubmitting}

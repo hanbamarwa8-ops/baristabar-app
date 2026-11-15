@@ -1,3 +1,4 @@
+
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
@@ -86,8 +87,7 @@ function detectImageType(bytes: Uint8Array): DetectedImage | null {
   return null;
 }
 
-
-// POST /api/admin/products/upload
+// POST
 // Upload an image to the Supabase Storage bucket.
 // Requires an authenticated administrator.
 export async function POST(request: Request) {
@@ -119,7 +119,10 @@ export async function POST(request: Request) {
     request.headers.get("content-length") ?? 0,
   );
 
-  if (contentLength > MAX_FILE_SIZE + 64 * 1024) {
+  if (
+    Number.isFinite(contentLength) &&
+    contentLength > MAX_FILE_SIZE + 64 * 1024
+  ) {
     return NextResponse.json(
       {
         success: false,
@@ -181,11 +184,7 @@ export async function POST(request: Request) {
 
   // 6. Validate declared MIME type.
 
-  if (
-    !ALLOWED_MIME_TYPES.includes(
-      file.type as AllowedMimeType,
-    )
-  ) {
+  if (!ALLOWED_MIME_TYPES.includes(file.type as AllowedMimeType)) {
     return NextResponse.json(
       {
         success: false,
@@ -229,13 +228,13 @@ export async function POST(request: Request) {
     );
   }
 
-  // 8. Read Supabase public configuration.
+  // 8. Read and validate Supabase public configuration.
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
 
   const supabasePublishableKey =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
   if (!supabaseUrl || !supabasePublishableKey) {
     console.error(
@@ -256,10 +255,13 @@ export async function POST(request: Request) {
   try {
     const parsedUrl = new URL(supabaseUrl);
 
-    if (
-      parsedUrl.protocol !== "https:" &&
-      parsedUrl.hostname !== "localhost"
-    ) {
+    const isHttps = parsedUrl.protocol === "https:";
+
+    const isLocalDevelopment =
+      parsedUrl.protocol === "http:" &&
+      ["localhost", "127.0.0.1"].includes(parsedUrl.hostname);
+
+    if (!isHttps && !isLocalDevelopment) {
       throw new Error("Invalid Supabase URL protocol.");
     }
 
@@ -301,7 +303,7 @@ export async function POST(request: Request) {
         Authorization: authorization,
         apikey: supabasePublishableKey,
         "Content-Type": detectedImage.mimeType,
-        "Cache-Control": "3600",
+        "Cache-Control": "max-age=3600",
         "x-upsert": "false",
       },
       body: file,
