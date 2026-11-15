@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 
 import { requireAdminApi } from "@/lib/require-admin-api";
@@ -6,6 +7,7 @@ import {
   createAdminProduct,
   findAllAdminProducts,
   getDatabaseErrorCode,
+  ProductCategoryNotFoundError,
   validateProductPayload,
 } from "@/lib/admin-products";
 
@@ -100,8 +102,20 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
+    // The selected category does not exist.
+    if (error instanceof ProductCategoryNotFoundError) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "The selected category does not exist.",
+        },
+        { status: 400 },
+      );
+    }
+
     const code = getDatabaseErrorCode(error);
 
+    // Duplicate product slug.
     if (code === "23505") {
       return NextResponse.json(
         {
@@ -120,7 +134,10 @@ export async function POST(request: Request) {
         message: "Unable to create product.",
       },
       {
-        status: code === "22P02" ? 400 : 500,
+        status:
+          code === "22P02" || code === "23514"
+            ? 400
+            : 500,
       },
     );
   }

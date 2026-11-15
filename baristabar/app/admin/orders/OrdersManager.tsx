@@ -311,7 +311,7 @@ function OrderProgress({ status }: { status: string }) {
 
   return (
     <div className="overflow-x-auto pb-2">
-      <div className="flex min-w-[540px] items-start">
+      <div className="flex min-w-135 items-start">
         {steps.map((step, index) => {
           const completed = index <= progress;
 
@@ -843,7 +843,7 @@ export function OrdersManager() {
       )}
 
       {/* Orders list */}
-      <section className="overflow-hidden rounded-2xl border border-[#E8DED4] bg-white shadow-sm shadow-[#3B2418]/[0.025]">
+      <section className="overflow-hidden rounded-2xl border border-[#E8DED4] bg-white shadow-sm shadow-[#3B2418]/2.5">
         {/* Toolbar */}
         <div className="border-b border-[#E8DED4] bg-[#FBF8F4] px-5 py-5 sm:px-7">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1296,7 +1296,7 @@ export function OrdersManager() {
                           </p>
                         ) : (
                           <div className="overflow-x-auto">
-                            <table className="w-full min-w-[600px] text-left text-sm">
+                            <table className="w-full min-w-150 text-left text-sm">
                               <thead className="bg-white text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9A8577]">
                                 <tr>
                                   <th className="px-5 py-4">Item</th>
