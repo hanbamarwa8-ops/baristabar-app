@@ -13,8 +13,8 @@ const navigationItems = [
   { label: "Products", href: "/admin/products" },
   { label: "Categories", href: "/admin/categories" },
   { label: "Orders", href: "/admin/orders" },
+  { label: "Customers", href: "/admin/customers" },
 ];
-
 export function AdminHeader() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

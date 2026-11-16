@@ -456,11 +456,63 @@ function mapOrder(
   };
 }
 
+interface CheckoutProfileRow {
+  role: string;
+  account_status: string;
+}
+
+async function assertCheckoutAccountAllowed(
+  client: PoolClient,
+  userId: string,
+): Promise<void> {
+  // Hold a shared row lock until the checkout transaction finishes.
+  // A concurrent suspension UPDATE must wait, and a suspension committed
+  // before this query is visible here.
+  const result = await client.query<CheckoutProfileRow>(
+    `SELECT role, account_status
+     FROM public.profiles
+     WHERE id = $1::uuid
+     FOR SHARE`,
+    [userId],
+  );
+
+  const profile = result.rows[0];
+
+  if (!profile) {
+    throw new ApiError(
+      "Your account profile could not be verified. Please contact BaristaBar support.",
+      403,
+    );
+  }
+
+  // Admin accounts are not part of Customer Management suspension.
+  // Preserve their existing ability to exercise the checkout in development.
+  if (profile.role === "admin") {
+    return;
+  }
+
+  if (profile.role !== "customer") {
+    throw new ApiError(
+      "This account is not allowed to place orders.",
+      403,
+    );
+  }
+
+  // Fail closed for every customer state other than explicitly active.
+  if (profile.account_status !== "active") {
+    throw new ApiError(
+      "Your customer account is suspended. Contact BaristaBar support for assistance.",
+      403,
+    );
+  }
+}
+
 async function findExistingOrder(
+  client: PoolClient,
   userId: string,
   idempotencyKey: string,
 ): Promise<OrderResponseRow | null> {
-  const result = await getPool().query<OrderResponseRow>(
+  const result = await client.query<OrderResponseRow>(
     `SELECT
        id,
        status,
@@ -575,36 +627,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // Simulation must never return an existing real order.
-  if (!dryRun) {
-    try {
-      const previous = await findExistingOrder(
-        data.user.id,
-        payload.idempotencyKey,
-      );
-
-      if (previous) {
-        return NextResponse.json(
-          {
-            success: true,
-            order: mapOrder(previous, true),
-          },
-          { status: 200 },
-        );
-      }
-    } catch (error) {
-      console.error("Unable to check order idempotency:", error);
-
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Unable to verify the order. Please try again.",
-        },
-        { status: 500 },
-      );
-    }
-  }
-
   const productIds = payload.items
     .filter(
       (item): item is ProductRequest => item.type === "product",
@@ -652,6 +674,38 @@ export async function POST(request: Request) {
 
     await client.query("BEGIN");
     transactionActive = true;
+
+    // Check the current profile state inside the same transaction as the
+    // order creation. The FOR SHARE lock prevents a suspension from racing
+    // with stock reservation and order insertion.
+    await assertCheckoutAccountAllowed(client, data.user.id);
+
+    // Check idempotency only after authorization. This also prevents a
+    // suspended customer from retrieving a previously created order through
+    // an idempotent replay.
+    if (!dryRun) {
+      const previous = await findExistingOrder(
+        client,
+        data.user.id,
+        payload.idempotencyKey,
+      );
+
+      if (previous) {
+        await client.query("COMMIT");
+        transactionActive = false;
+
+        return NextResponse.json(
+          {
+            success: true,
+            order: mapOrder(previous, true),
+          },
+          {
+            status: 200,
+            headers: { "Cache-Control": "no-store" },
+          },
+        );
+      }
+    }
 
     const result = await client.query<ProductRow>(
       `SELECT
@@ -1087,11 +1141,25 @@ export async function POST(request: Request) {
     const databaseError = error as { code?: string };
 
     if (databaseError?.code === "23505") {
+      let replayClient: PoolClient | null = null;
+      let replayTransactionActive = false;
+
       try {
+        replayClient = await getPool().connect();
+        await replayClient.query("BEGIN");
+        replayTransactionActive = true;
+
+        // Re-check authorization before returning an idempotent replay.
+        await assertCheckoutAccountAllowed(replayClient, data.user.id);
+
         const existing = await findExistingOrder(
+          replayClient,
           data.user.id,
           payload.idempotencyKey,
         );
+
+        await replayClient.query("COMMIT");
+        replayTransactionActive = false;
 
         if (existing) {
           return NextResponse.json(
@@ -1106,10 +1174,26 @@ export async function POST(request: Request) {
           );
         }
       } catch (lookupError) {
+        if (lookupError instanceof ApiError) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: lookupError.message,
+            },
+            {
+              status: lookupError.status,
+              headers: { "Cache-Control": "no-store" },
+            },
+          );
+        }
+
         console.error(
           "Unable to retrieve an existing order:",
           lookupError,
         );
+      } finally {
+        await rollbackQuietly(replayClient, replayTransactionActive);
+        replayClient?.release();
       }
     }
 
