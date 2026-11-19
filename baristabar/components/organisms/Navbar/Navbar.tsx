@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldCheck } from "lucide-react";
+import { MessageCircle, ShieldCheck } from "lucide-react";
 
 import { Logo } from "@/components/atoms/Logo";
 import { Icon } from "@/components/atoms/Icon";
@@ -46,7 +46,7 @@ export function Navbar() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // État de la fenêtre de connexion administrateur.
+  // Admin access modal
   const [adminAccessOpen, setAdminAccessOpen] = useState(false);
 
   const closeAdminAccessModal = useCallback(() => {
@@ -55,7 +55,7 @@ export function Navbar() {
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Charge les catégories actives depuis PostgreSQL via l'API publique.
+  // Load active shop categories.
   useEffect(() => {
     let mounted = true;
 
@@ -97,7 +97,7 @@ export function Navbar() {
     };
   }, []);
 
-  // Synchronise l'état de connexion avec Supabase.
+  // Synchronize authentication state with Supabase.
   useEffect(() => {
     const supabase = createClient();
     let mounted = true;
@@ -126,7 +126,6 @@ export function Navbar() {
       setIsAuthenticated(authenticated);
       setAuthLoading(false);
 
-      // Ferme le menu mobile après une déconnexion.
       if (!authenticated) {
         setMobileMenuOpen(false);
         setMobileShopOpen(false);
@@ -139,7 +138,7 @@ export function Navbar() {
     };
   }, []);
 
-  // Place automatiquement le curseur dans la recherche.
+  // Focus the search input when opened.
   useEffect(() => {
     if (searchOpen) {
       searchInputRef.current?.focus();
@@ -174,7 +173,7 @@ export function Navbar() {
           <Logo />
         </div>
 
-        {/* Navigation desktop */}
+        {/* Desktop navigation */}
         <nav
           aria-label="Main navigation"
           className={`absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 transition-opacity duration-200 lg:gap-8 md:flex ${
@@ -185,7 +184,7 @@ export function Navbar() {
         >
           <NavItem href="/" label="Home" />
 
-          {/* Menu Shop */}
+          {/* Shop menu */}
           <div className="relative flex items-center gap-1">
             <Link href="/shop" className={navigationLinkClass}>
               Shop
@@ -246,11 +245,15 @@ export function Navbar() {
 
           <NavItem href={discoveryHref} label="Discovery" />
           <NavItem href={beanBoxHref} label="BeanBox" />
+
+          {isAuthenticated && (
+            <NavItem href="/support" label="Support" />
+          )}
         </nav>
 
-        {/* Actions à droite */}
+        {/* Right-side actions */}
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-          {/* Champ de recherche */}
+          {/* Search field */}
           <div
             aria-hidden={!searchOpen}
             className={`shrink-0 overflow-hidden transition-[width,opacity] duration-300 ease-in-out ${
@@ -288,7 +291,7 @@ export function Navbar() {
             </form>
           </div>
 
-          {/* Ouverture/fermeture de la recherche */}
+          {/* Search toggle */}
           <button
             type="button"
             onClick={toggleSearch}
@@ -316,7 +319,7 @@ export function Navbar() {
             )}
           </button>
 
-          {/* Panier */}
+          {/* Cart */}
           <Link
             href="/cart"
             aria-label={`Cart, ${itemCount} items`}
@@ -331,7 +334,7 @@ export function Navbar() {
             )}
           </Link>
 
-          {/* Accès administrateur */}
+          {/* Admin access */}
           <button
             type="button"
             onClick={() => setAdminAccessOpen(true)}
@@ -344,7 +347,7 @@ export function Navbar() {
             <ShieldCheck size={19} strokeWidth={1.7} />
           </button>
 
-          {/* Authentification desktop */}
+          {/* Desktop authentication */}
           {!authLoading && (
             <div
               className={`ml-2 hidden items-center gap-4 lg:flex ${
@@ -373,7 +376,7 @@ export function Navbar() {
             </div>
           )}
 
-          {/* Bouton du menu mobile */}
+          {/* Mobile menu button */}
           <button
             type="button"
             onClick={() => setMobileMenuOpen((open) => !open)}
@@ -420,7 +423,7 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Menu mobile */}
+      {/* Mobile navigation */}
       {mobileMenuOpen && (
         <nav
           aria-label="Mobile navigation"
@@ -435,7 +438,7 @@ export function Navbar() {
               Home
             </Link>
 
-            {/* Menu Shop mobile */}
+            {/* Mobile Shop menu */}
             <button
               type="button"
               onClick={() => setMobileShopOpen((open) => !open)}
@@ -513,7 +516,7 @@ export function Navbar() {
               Cart {itemCount > 0 && `(${itemCount})`}
             </Link>
 
-            {/* Accès administrateur mobile */}
+            {/* Admin access mobile */}
             <button
               type="button"
               onClick={() => setAdminAccessOpen(true)}
@@ -525,10 +528,19 @@ export function Navbar() {
               Espace administrateur
             </button>
 
-            {/* Authentification mobile */}
+            {/* Mobile authentication */}
             {!authLoading &&
               (isAuthenticated ? (
-                <div className="px-3 py-2">
+                <div className="space-y-2 px-3 py-2">
+                  <Link
+                    href="/support"
+                    onClick={closeMobileMenu}
+                    className="flex items-center gap-2 rounded-lg py-2 text-sm font-semibold text-[#3B2418] transition-colors hover:text-[#8A6B55]"
+                  >
+                    <MessageCircle size={17} strokeWidth={1.8} />
+                    Customer support
+                  </Link>
+
                   <LogoutButton />
                 </div>
               ) : (
@@ -554,7 +566,7 @@ export function Navbar() {
         </nav>
       )}
 
-      {/* Fenêtre de connexion administrateur */}
+      {/* Admin login modal */}
       <AdminAccessModal
         isOpen={adminAccessOpen}
         onClose={closeAdminAccessModal}

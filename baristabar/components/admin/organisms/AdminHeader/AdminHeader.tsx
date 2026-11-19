@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -14,7 +13,9 @@ const navigationItems = [
   { label: "Categories", href: "/admin/categories" },
   { label: "Orders", href: "/admin/orders" },
   { label: "Customers", href: "/admin/customers" },
+  { label: "Messages", href: "/admin/support" },
 ];
+
 export function AdminHeader() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -33,7 +34,7 @@ export function AdminHeader() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[#3B2418]/10 bg-[#E8DED4]/80 text-[#3B2418] backdrop-blur-xl">
       <div className="relative mx-auto flex h-19 max-w-360 items-center justify-between gap-3 px-4 sm:gap-4 sm:px-8 lg:px-12">
-        {/* Same brand logo as the storefront */}
+        {/* Logo */}
         <div className="shrink-0">
           <Logo />
         </div>
@@ -41,7 +42,7 @@ export function AdminHeader() {
         {/* Desktop navigation */}
         <nav
           aria-label="Admin navigation"
-          className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 md:flex lg:gap-8"
+          className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-5 lg:flex xl:gap-7"
         >
           {navigationItems.map((item) => {
             const active = isActive(item.href);
@@ -51,7 +52,7 @@ export function AdminHeader() {
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`inline-flex min-h-10 items-center justify-center rounded-full px-4 py-2 text-sm transition-all duration-200 ${
+                className={`inline-flex min-h-10 items-center justify-center rounded-full px-3 py-2 text-sm transition-all duration-200 ${
                   active
                     ? "bg-[#3B2418] font-semibold text-[#F8F2EB] shadow-sm shadow-[#3B2418]/15"
                     : "font-medium text-[#3B2418] hover:text-[#8A6B55]"
@@ -80,7 +81,7 @@ export function AdminHeader() {
             aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileMenuOpen}
             aria-controls="admin-mobile-navigation"
-            className="flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-[#3B2418]/5 md:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-[#3B2418]/5 lg:hidden"
           >
             {mobileMenuOpen ? (
               <svg
@@ -122,7 +123,7 @@ export function AdminHeader() {
         <nav
           id="admin-mobile-navigation"
           aria-label="Admin mobile navigation"
-          className="border-t border-[#3B2418]/10 bg-[#E8DED4]/95 px-5 py-4 backdrop-blur-xl md:hidden"
+          className="border-t border-[#3B2418]/10 bg-[#E8DED4]/95 px-5 py-4 backdrop-blur-xl lg:hidden"
         >
           <div className="flex flex-col gap-1">
             {navigationItems.map((item) => {
