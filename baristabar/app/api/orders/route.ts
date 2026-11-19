@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import type { PoolClient } from "pg";
+import type pg from "pg";
 
 import { getPool } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 import { TUNISIAN_LOCATIONS } from "@/lib/tunisia-locations";
+
+type PoolClient = pg.PoolClient;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

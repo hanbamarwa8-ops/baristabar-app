@@ -14,25 +14,21 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const RESPONSE_HEADERS = {
+  "Cache-Control": "private, no-store",
+};
+
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
-// PUT
-// Update an existing product.
 export async function PUT(
   request: Request,
   context: RouteContext,
 ) {
-  // 1. Verify administrator authentication.
-
   const auth = await requireAdminApi(request);
 
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  // 2. Validate product ID.
+  if (!auth.ok) return auth.response;
 
   const { id } = await context.params;
 
@@ -42,11 +38,9 @@ export async function PUT(
         success: false,
         message: "A valid product ID is required.",
       },
-      { status: 400 },
+      { status: 400, headers: RESPONSE_HEADERS },
     );
   }
-
-  // 3. Parse request body.
 
   let body: unknown;
 
@@ -58,11 +52,9 @@ export async function PUT(
         success: false,
         message: "A valid JSON body is required.",
       },
-      { status: 400 },
+      { status: 400, headers: RESPONSE_HEADERS },
     );
   }
-
-  // 4. Validate product data.
 
   const validation = validateProductPayload(body);
 
@@ -72,17 +64,12 @@ export async function PUT(
         success: false,
         message: validation.message,
       },
-      { status: 400 },
+      { status: 400, headers: RESPONSE_HEADERS },
     );
   }
 
-  // 5. Update product.
-
   try {
-    const product = await updateAdminProduct(
-      id,
-      validation.value,
-    );
+    const product = await updateAdminProduct(id, validation.value);
 
     if (!product) {
       return NextResponse.json(
@@ -90,15 +77,18 @@ export async function PUT(
           success: false,
           message: "Product not found.",
         },
-        { status: 404 },
+        { status: 404, headers: RESPONSE_HEADERS },
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Product updated successfully.",
-      data: product,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Product updated successfully.",
+        data: product,
+      },
+      { headers: RESPONSE_HEADERS },
+    );
   } catch (error) {
     if (error instanceof ProductCategoryNotFoundError) {
       return NextResponse.json(
@@ -106,7 +96,7 @@ export async function PUT(
           success: false,
           message: "The selected category does not exist.",
         },
-        { status: 400 },
+        { status: 400, headers: RESPONSE_HEADERS },
       );
     }
 
@@ -118,17 +108,7 @@ export async function PUT(
           success: false,
           message: "A product with this slug already exists.",
         },
-        { status: 409 },
-      );
-    }
-
-    if (code === "22P02" || code === "23514") {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid product data.",
-        },
-        { status: 400 },
+        { status: 409, headers: RESPONSE_HEADERS },
       );
     }
 
@@ -137,28 +117,26 @@ export async function PUT(
     return NextResponse.json(
       {
         success: false,
-        message: "Unable to update product.",
+        message:
+          code === "22P02" || code === "23514"
+            ? "Invalid product data."
+            : "Unable to update product.",
       },
-      { status: 500 },
+      {
+        status: code === "22P02" || code === "23514" ? 400 : 500,
+        headers: RESPONSE_HEADERS,
+      },
     );
   }
 }
 
-// DELETE
-// Delete a product only if no historical order references it.
 export async function DELETE(
   request: Request,
   context: RouteContext,
 ) {
-  // 1. Verify administrator authentication.
-
   const auth = await requireAdminApi(request);
 
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  // 2. Validate product ID.
+  if (!auth.ok) return auth.response;
 
   const { id } = await context.params;
 
@@ -168,11 +146,9 @@ export async function DELETE(
         success: false,
         message: "A valid product ID is required.",
       },
-      { status: 400 },
+      { status: 400, headers: RESPONSE_HEADERS },
     );
   }
-
-  // 3. Delete product.
 
   try {
     const deletedProduct = await deleteAdminProduct(id);
@@ -183,23 +159,23 @@ export async function DELETE(
           success: false,
           message: "Product not found.",
         },
-        { status: 404 },
+        { status: 404, headers: RESPONSE_HEADERS },
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Product deleted successfully.",
-      data: {
-        id: deletedProduct.id,
-        image_url: deletedProduct.image_url,
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Product deleted successfully.",
+        data: {
+          id: deletedProduct.id,
+          image_url: deletedProduct.image_url,
+        },
       },
-    });
+      { headers: RESPONSE_HEADERS },
+    );
   } catch (error) {
     const code = getDatabaseErrorCode(error);
-
-    // Preserve historical orders.
-    // PostgreSQL foreign key violation.
 
     if (code === "23503") {
       return NextResponse.json(
@@ -208,7 +184,7 @@ export async function DELETE(
           message:
             "This product cannot be deleted because it is referenced by existing orders. Deactivate it instead.",
         },
-        { status: 409 },
+        { status: 409, headers: RESPONSE_HEADERS },
       );
     }
 
@@ -219,7 +195,7 @@ export async function DELETE(
         success: false,
         message: "Unable to delete product.",
       },
-      { status: 500 },
+      { status: 500, headers: RESPONSE_HEADERS },
     );
   }
 }

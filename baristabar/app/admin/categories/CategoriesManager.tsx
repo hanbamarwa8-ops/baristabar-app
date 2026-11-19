@@ -121,7 +121,7 @@ function formatDate(value: string): string {
   }).format(date);
 }
 
-const MAX_CATEGORY_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_CATEGORY_IMAGE_SIZE = 4 * 1024 * 1024;
 const ALLOWED_CATEGORY_IMAGE_TYPES = [
   "image/jpeg",
   "image/png",
@@ -401,7 +401,7 @@ export function CategoriesManager() {
     if (file.size > MAX_CATEGORY_IMAGE_SIZE) {
       setImageNotice({
         type: "error",
-        message: "The image must be 5 MB or smaller.",
+        message: "The image must be 4 MB or smaller.",
       });
       if (imageInputRef.current) imageInputRef.current.value = "";
       return;
@@ -1426,7 +1426,7 @@ export function CategoriesManager() {
                     </p>
 
                     <p className="mt-1 text-xs text-[#9A8577]">
-                      JPEG, PNG, WebP or AVIF · Maximum 5 MB
+                      JPEG, PNG, WebP or AVIF · Maximum 4 MB
                     </p>
 
                     <button

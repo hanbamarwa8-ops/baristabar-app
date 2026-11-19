@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import type { PoolClient } from "pg";
 
 import { getPool } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
+import { consumeRateLimit } from "@/lib/rate-limit";
+
+type SupportDbClient = NonNullable<
+  Parameters<Parameters<ReturnType<typeof getPool>["connect"]>[0]>[1]
+>;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -102,7 +106,7 @@ async function requireCustomer() {
   }
 }
 
-async function rollbackQuietly(client: PoolClient, transactionActive: boolean) {
+async function rollbackQuietly(client: SupportDbClient, transactionActive: boolean) {
   if (!transactionActive) return;
   try {
     await client.query("ROLLBACK");
@@ -251,6 +255,30 @@ export async function POST(request: Request) {
   const auth = await requireCustomer();
   if (!auth.ok) return auth.response;
 
+  try {
+    const rateLimit = await consumeRateLimit(
+      `support:${auth.userId}`,
+      10,
+      5 * 60 * 1_000,
+    );
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, message: "You are sending messages too quickly. Please try again later." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(rateLimit.retryAfterSeconds),
+            "Cache-Control": "no-store",
+          },
+        },
+      );
+    }
+  } catch (error) {
+    console.error("Support rate-limit check failed:", error);
+    return jsonError("Support is temporarily unavailable. Please try again later.", 503);
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -268,16 +296,17 @@ export async function POST(request: Request) {
     return jsonError("Invalid support message.", 400);
   }
 
-  let client: PoolClient | null = null;
+  let client: SupportDbClient | undefined;
   let transactionActive = false;
 
   try {
-    client = await getPool().connect();
-    await client.query("BEGIN");
+    const connectedClient: SupportDbClient = await getPool().connect();
+    client = connectedClient;
+    await connectedClient.query("BEGIN");
     transactionActive = true;
 
     if (payload.orderId) {
-      const orderResult = await client.query<{ id: string }>(
+      const orderResult = await connectedClient.query<{ id: string }>(
         `
           SELECT id::text
           FROM public.orders
@@ -295,7 +324,7 @@ export async function POST(request: Request) {
 
     // The unique customer_id constraint guarantees one conversation per customer.
     // A new customer message automatically reopens a previously closed conversation.
-    const conversationResult = await client.query<{ id: string; status: "open" | "closed" }>(
+    const conversationResult = await connectedClient.query<{ id: string; status: "open" | "closed" }>(
       `
         INSERT INTO public.support_conversations (customer_id, status)
         VALUES ($1::uuid, 'open')
@@ -313,7 +342,7 @@ export async function POST(request: Request) {
       throw new Error("Support conversation could not be created.");
     }
 
-    const messageResult = await client.query<MessageRow>(
+    const messageResult = await connectedClient.query<MessageRow>(
       `
         INSERT INTO public.support_messages (
           conversation_id,
@@ -341,7 +370,7 @@ export async function POST(request: Request) {
       throw new Error("Support message could not be created.");
     }
 
-    await client.query(
+    await connectedClient.query(
       `
         UPDATE public.support_conversations
         SET last_message_at = $2, updated_at = now(), status = 'open'
@@ -350,7 +379,7 @@ export async function POST(request: Request) {
       [conversation.id, message.created_at],
     );
 
-    await client.query("COMMIT");
+    await connectedClient.query("COMMIT");
     transactionActive = false;
 
     return NextResponse.json(

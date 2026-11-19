@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+
 import { requireAdminApi } from "@/lib/require-admin-api";
 import {
   isValidProductId,
@@ -12,16 +13,44 @@ type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
+function jsonResponse(
+  body: Record<string, unknown>,
+  status = 200,
+) {
+  return NextResponse.json(body, {
+    status,
+    headers: {
+      "Cache-Control": "private, no-store, max-age=0",
+    },
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   const auth = await requireAdminApi(request);
-  if (!auth.ok) return auth.response;
 
-  const { id } = await context.params;
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  let id: string;
+
+  try {
+    ({ id } = await context.params);
+  } catch {
+    return jsonResponse(
+      { success: false, message: "A valid product ID is required." },
+      400,
+    );
+  }
 
   if (!isValidProductId(id)) {
-    return NextResponse.json(
+    return jsonResponse(
       { success: false, message: "A valid product ID is required." },
-      { status: 400 },
+      400,
     );
   }
 
@@ -30,44 +59,45 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
+    return jsonResponse(
       { success: false, message: "A valid JSON body is required." },
-      { status: 400 },
+      400,
     );
   }
 
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    !("is_active" in body) ||
-    typeof body.is_active !== "boolean"
-  ) {
-    return NextResponse.json(
+  if (!isRecord(body) || typeof body.is_active !== "boolean") {
+    return jsonResponse(
       { success: false, message: "is_active must be true or false." },
-      { status: 400 },
+      400,
     );
   }
 
   try {
-    const product = await updateProductActiveStatus(
-      id,
-      body.is_active,
-    );
+    const product = await updateProductActiveStatus(id, body.is_active);
 
     if (!product) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, message: "Product not found." },
-        { status: 404 },
+        404,
       );
     }
 
-    return NextResponse.json({ success: true, data: product });
+    return jsonResponse({
+      success: true,
+      message: body.is_active
+        ? "Product activated successfully."
+        : "Product deactivated successfully.",
+      data: product,
+    });
   } catch (error) {
     console.error("Failed to update product status:", error);
 
-    return NextResponse.json(
-      { success: false, message: "Unable to update product status." },
-      { status: 500 },
+    return jsonResponse(
+      {
+        success: false,
+        message: "Unable to update product status.",
+      },
+      500,
     );
   }
 }

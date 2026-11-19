@@ -1,3 +1,4 @@
+
 name: BaristaBar CI
 
 on:
@@ -20,6 +21,11 @@ jobs:
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?sslmode=require
+      DELIVERY_FEE_TND: "7.000"
+      DB_POOL_MAX: "1"
+      ORDERS_DRY_RUN_ENABLED: "false"
+      RATE_LIMIT_SECRET: ci-only-test-secret
 
     steps:
       - name: Checkout repository

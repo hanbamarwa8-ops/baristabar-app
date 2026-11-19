@@ -6,215 +6,358 @@ import { requireAdminApi } from "@/lib/require-admin-api";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const BUCKET = "product-images";
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const BUCKET_NAME = "product-images";
+const MAX_FILE_SIZE = 4 * 1024 * 1024;
+const MAX_MULTIPART_OVERHEAD = 64 * 1024;
+const CACHE_CONTROL_SECONDS = 3600;
 
-const ALLOWED_IMAGE_TYPES = new Set([
+const ALLOWED_MIME_TYPES = [
   "image/jpeg",
   "image/png",
   "image/webp",
   "image/avif",
-]);
+] as const;
 
-type ImageExtension = "jpg" | "png" | "webp" | "avif";
+type AllowedMimeType = (typeof ALLOWED_MIME_TYPES)[number];
 
-function detectImageExtension(bytes: Uint8Array): ImageExtension | null {
-  // JPEG: FF D8 FF
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
-    return "jpg";
+interface DetectedImage {
+  mimeType: AllowedMimeType;
+  extension: string;
+}
+
+function jsonResponse(
+  body: Record<string, unknown>,
+  status = 200,
+) {
+  return NextResponse.json(body, {
+    status,
+    headers: {
+      "Cache-Control": "no-store, max-age=0",
+    },
+  });
+}
+
+function ascii(bytes: Uint8Array, start: number, end: number): string {
+  return String.fromCharCode(...bytes.slice(start, end));
+}
+
+function detectImageType(bytes: Uint8Array): DetectedImage | null {
+  // JPEG
+  if (
+    bytes.length >= 3 &&
+    bytes[0] === 0xff &&
+    bytes[1] === 0xd8 &&
+    bytes[2] === 0xff
+  ) {
+    return { mimeType: "image/jpeg", extension: "jpg" };
   }
 
-  // PNG signature
+  // PNG
   if (
     bytes.length >= 8 &&
     bytes[0] === 0x89 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x4e &&
-    bytes[3] === 0x47 &&
+    ascii(bytes, 1, 4) === "PNG" &&
     bytes[4] === 0x0d &&
     bytes[5] === 0x0a &&
     bytes[6] === 0x1a &&
     bytes[7] === 0x0a
   ) {
-    return "png";
+    return { mimeType: "image/png", extension: "png" };
   }
 
-  // WebP: RIFF....WEBP
+  // WebP
   if (
     bytes.length >= 12 &&
-    String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
-    String.fromCharCode(...bytes.slice(8, 12)) === "WEBP"
+    ascii(bytes, 0, 4) === "RIFF" &&
+    ascii(bytes, 8, 12) === "WEBP"
   ) {
-    return "webp";
+    return { mimeType: "image/webp", extension: "webp" };
   }
 
-  // AVIF: ISO BMFF with major brand avif/avis.
-  if (
-    bytes.length >= 12 &&
-    String.fromCharCode(...bytes.slice(4, 8)) === "ftyp" &&
-    ["avif", "avis"].includes(String.fromCharCode(...bytes.slice(8, 12)))
-  ) {
-    return "avif";
+  // AVIF: inspect both the major brand and compatible brands in the ftyp box.
+  if (bytes.length >= 16 && ascii(bytes, 4, 8) === "ftyp") {
+    const majorBrand = ascii(bytes, 8, 12);
+    const hasAvifCompatibleBrand = ["avif", "avis"].includes(majorBrand);
+
+    let hasCompatibleAvifBrand = false;
+
+    for (let offset = 16; offset + 4 <= bytes.length; offset += 4) {
+      const brand = ascii(bytes, offset, offset + 4);
+
+      if (brand === "avif" || brand === "avis") {
+        hasCompatibleAvifBrand = true;
+        break;
+      }
+    }
+
+    if (hasAvifCompatibleBrand || hasCompatibleAvifBrand) {
+      return { mimeType: "image/avif", extension: "avif" };
+    }
   }
 
   return null;
 }
 
-function jsonError(message: string, status: number) {
-  return NextResponse.json(
-    { success: false, message },
-    { status }
-  );
+function getSupabaseConfiguration(): {
+  baseUrl: string;
+  publishableKey: string;
+} | null {
+  const configuredUrl = (
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL
+  )?.trim();
+
+  const publishableKey = (
+    process.env.SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )?.trim();
+
+  if (!configuredUrl || !publishableKey) {
+    return null;
+  }
+
+  try {
+    const url = new URL(configuredUrl);
+    const isHttps = url.protocol === "https:";
+    const isLocalDevelopment =
+      url.protocol === "http:" &&
+      ["localhost", "127.0.0.1"].includes(url.hostname);
+
+    if (
+      (!isHttps && !isLocalDevelopment) ||
+      url.username !== "" ||
+      url.password !== "" ||
+      url.pathname !== "/" ||
+      url.search !== "" ||
+      url.hash !== ""
+    ) {
+      return null;
+    }
+
+    return {
+      baseUrl: url.origin,
+      publishableKey,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function POST(request: Request) {
-  try {
-    const auth = await requireAdminApi(request);
+  // 1. Authenticate the Bearer token and verify the administrator role.
+  const auth = await requireAdminApi(request);
 
-    if (!auth.ok) {
-      return auth.response;
-    }
+  if (!auth.ok) {
+    return auth.response;
+  }
 
-    const authorization = request.headers.get("authorization") ?? "";
-    const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
+  const authorization = request.headers.get("authorization");
+  const bearerMatch = authorization?.match(/^Bearer\s+(.+)$/i);
+  const accessToken = bearerMatch?.[1]?.trim();
 
-    if (!token) {
-      return jsonError("A valid admin session is required.", 401);
-    }
-
-    const contentLength = Number(request.headers.get("content-length") ?? 0);
-
-    // Allow a small multipart boundary/header overhead.
-    if (Number.isFinite(contentLength) && contentLength > MAX_IMAGE_SIZE + 64 * 1024) {
-      return jsonError("The image must not exceed 5 MB.", 413);
-    }
-
-    const formData = await request.formData();
-    const file = formData.get("file");
-
-    if (!(file instanceof File)) {
-      return jsonError("No image file was provided.", 400);
-    }
-
-    if (file.size <= 0) {
-      return jsonError("The selected image is empty.", 400);
-    }
-
-    if (file.size > MAX_IMAGE_SIZE) {
-      return jsonError("The image must not exceed 5 MB.", 413);
-    }
-
-    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-      return jsonError("Use a JPEG, PNG, WebP or AVIF image.", 415);
-    }
-
-    const imageBytes = new Uint8Array(await file.arrayBuffer());
-    const extension = detectImageExtension(imageBytes);
-
-    if (!extension) {
-      return jsonError("The uploaded file is not a supported image.", 415);
-    }
-
-    const expectedMimeType: Record<ImageExtension, string> = {
-      jpg: "image/jpeg",
-      png: "image/png",
-      webp: "image/webp",
-      avif: "image/avif",
-    };
-
-    if (file.type !== expectedMimeType[extension]) {
-      return jsonError("The image content does not match its file type.", 415);
-    }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-    const supabaseKey =
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
-
-    if (!supabaseUrl || !supabaseKey) {
-      console.error("Missing Supabase URL or publishable/anon key for category image upload.");
-      return jsonError("Supabase Storage is not configured on the server.", 500);
-    }
-
-    let baseUrl: URL;
-
-    try {
-      baseUrl = new URL(supabaseUrl);
-    } catch {
-      return jsonError("The Supabase URL configuration is invalid.", 500);
-    }
-
-    if (
-      baseUrl.protocol !== "https:" &&
-      !(baseUrl.protocol === "http:" && ["localhost", "127.0.0.1"].includes(baseUrl.hostname))
-    ) {
-      return jsonError("The Supabase URL must use HTTPS.", 500);
-    }
-
-    const path = `categories/${randomUUID()}.${extension}`;
-    const encodedPath = path.split("/").map(encodeURIComponent).join("/");
-    const uploadUrl = new URL(
-      `/storage/v1/object/${BUCKET}/${encodedPath}`,
-      baseUrl
+  if (!accessToken) {
+    return jsonResponse(
+      {
+        success: false,
+        message: "Administrator authentication is required.",
+      },
+      401,
     );
+  }
 
-    const storageResponse = await fetch(uploadUrl, {
+  // 2. Reject oversized requests before parsing multipart data, when the
+  // runtime provides Content-Length. The file limit leaves room for multipart headers.
+  const contentLengthHeader = request.headers.get("content-length");
+
+  if (contentLengthHeader !== null) {
+    const contentLength = Number(contentLengthHeader);
+
+    if (!Number.isSafeInteger(contentLength) || contentLength < 0) {
+      return jsonResponse(
+        { success: false, message: "Invalid request content length." },
+        400,
+      );
+    }
+
+    if (contentLength > MAX_FILE_SIZE + MAX_MULTIPART_OVERHEAD) {
+      return jsonResponse(
+        {
+          success: false,
+          message: "The upload is too large. Maximum image size is 4 MB.",
+        },
+        413,
+      );
+    }
+  }
+
+  // 3. Parse multipart form data.
+  let formData: FormData;
+
+  try {
+    formData = await request.formData();
+  } catch {
+    return jsonResponse(
+      { success: false, message: "A valid multipart form is required." },
+      400,
+    );
+  }
+
+  const file = formData.get("file");
+
+  if (!(file instanceof File)) {
+    return jsonResponse(
+      {
+        success: false,
+        message: "An image file is required in the 'file' field.",
+      },
+      400,
+    );
+  }
+
+  // 4. Validate file size.
+  if (file.size === 0) {
+    return jsonResponse(
+      { success: false, message: "The selected image is empty." },
+      400,
+    );
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    return jsonResponse(
+      {
+        success: false,
+        message: "Image size must not exceed 4 MB.",
+      },
+      413,
+    );
+  }
+
+  // 5. Validate the declared MIME type.
+  if (!ALLOWED_MIME_TYPES.includes(file.type as AllowedMimeType)) {
+    return jsonResponse(
+      { success: false, message: "Unsupported image format." },
+      415,
+    );
+  }
+
+  // 6. Check the file signature. This detects common MIME spoofing but is not
+  // a full image decode; the Storage bucket must also enforce its MIME allow-list.
+  let detectedImage: DetectedImage | null;
+
+  try {
+    const header = new Uint8Array(await file.slice(0, 64).arrayBuffer());
+    detectedImage = detectImageType(header);
+  } catch {
+    return jsonResponse(
+      { success: false, message: "Unable to inspect the uploaded image." },
+      400,
+    );
+  }
+
+  if (!detectedImage || detectedImage.mimeType !== file.type) {
+    return jsonResponse(
+      {
+        success: false,
+        message: "The image content does not match its declared file format.",
+      },
+      415,
+    );
+  }
+
+  // 7. Validate Supabase configuration.
+  const supabaseConfig = getSupabaseConfiguration();
+
+  if (!supabaseConfig) {
+    console.error("Supabase Storage configuration is missing or invalid.");
+
+    return jsonResponse(
+      { success: false, message: "Storage configuration is incomplete." },
+      500,
+    );
+  }
+
+  // 8. Use a random server-generated path. The 'categories' folder is retained
+  // for the existing category Storage policies. Never use the client filename.
+  const objectPath = `categories/${randomUUID()}.${detectedImage.extension}`;
+  const encodedPath = objectPath
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/");
+
+  const uploadUrl =
+    `${supabaseConfig.baseUrl}/storage/v1/object/` +
+    `${BUCKET_NAME}/${encodedPath}`;
+
+  // 9. Upload with the user's verified JWT. Supabase Storage independently
+  // evaluates the authenticated user's Storage RLS policies.
+  let storageResponse: Response;
+
+  try {
+    storageResponse = await fetch(uploadUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: supabaseKey,
-        "Content-Type": expectedMimeType[extension],
-        "Cache-Control": "max-age=3600",
+        Authorization: `Bearer ${accessToken}`,
+        apikey: supabaseConfig.publishableKey,
+        "Content-Type": detectedImage.mimeType,
+        "Cache-Control": `max-age=${CACHE_CONTROL_SECONDS}`,
         "x-upsert": "false",
       },
       body: file,
       cache: "no-store",
     });
-
-    if (!storageResponse.ok) {
-      const storageError = (await storageResponse.json().catch(() => null)) as
-        | { message?: string; error?: string }
-        | null;
-
-      console.error("Category image Storage upload failed:", {
-        status: storageResponse.status,
-        message: storageError?.message ?? storageError?.error ?? "Unknown Storage error",
-      });
-
-      return jsonError(
-        storageError?.message ??
-          storageError?.error ??
-          "Supabase Storage could not save the category image.",
-        storageResponse.status
-      );
-    }
-
-    const publicUrl = new URL(
-      `/storage/v1/object/public/${BUCKET}/${encodedPath}`,
-      baseUrl
-    ).toString();
-
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Category image uploaded successfully.",
-        data: {
-          path,
-          publicUrl,
-          contentType: expectedMimeType[extension],
-          size: file.size,
-        },
-      },
-      { status: 201 }
-    );
   } catch (error) {
-    console.error("Category image upload route failed:", error);
+    console.error("Supabase Storage category image connection failed:", error);
 
-    return jsonError(
-      error instanceof Error
-        ? error.message
-        : "Unable to upload the category image.",
-      500
+    return jsonResponse(
+      { success: false, message: "Unable to connect to image storage." },
+      502,
     );
   }
+
+  // 10. Do not expose upstream Storage details to the browser.
+  if (!storageResponse.ok) {
+    let storageError = "";
+
+    try {
+      storageError = (await storageResponse.text()).slice(0, 500);
+    } catch {
+      // The status code is sufficient for the client response.
+    }
+
+    console.error(
+      "Category image Storage upload failed:",
+      storageResponse.status,
+      storageError,
+    );
+
+    return jsonResponse(
+      {
+        success: false,
+        message:
+          storageResponse.status === 403
+            ? "Storage upload not authorized. Check the administrator Storage policies."
+            : "Supabase Storage rejected the category image upload.",
+      },
+      storageResponse.status === 403 ? 403 : 502,
+    );
+  }
+
+  // 11. Return the public image URL. The category record is saved separately.
+  const publicUrl =
+    `${supabaseConfig.baseUrl}/storage/v1/object/public/` +
+    `${BUCKET_NAME}/${encodedPath}`;
+
+  return jsonResponse(
+    {
+      success: true,
+      message: "Category image uploaded successfully.",
+      data: {
+        path: objectPath,
+        publicUrl,
+        contentType: detectedImage.mimeType,
+        size: file.size,
+      },
+    },
+    201,
+  );
 }

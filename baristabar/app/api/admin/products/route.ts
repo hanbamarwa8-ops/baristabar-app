@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 
 import { requireAdminApi } from "@/lib/require-admin-api";
@@ -14,17 +13,14 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/**
- * GET /api/admin/products
- *
- * Retrieve all products for the admin dashboard.
- */
+const RESPONSE_HEADERS = {
+  "Cache-Control": "private, no-store",
+};
+
 export async function GET(request: Request) {
   const auth = await requireAdminApi(request);
 
-  if (!auth.ok) {
-    return auth.response;
-  }
+  if (!auth.ok) return auth.response;
 
   try {
     const products = await findAllAdminProducts();
@@ -34,11 +30,7 @@ export async function GET(request: Request) {
         success: true,
         data: products,
       },
-      {
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      },
+      { headers: RESPONSE_HEADERS },
     );
   } catch (error) {
     console.error("Failed to retrieve admin products:", error);
@@ -48,22 +40,15 @@ export async function GET(request: Request) {
         success: false,
         message: "Unable to retrieve products.",
       },
-      { status: 500 },
+      { status: 500, headers: RESPONSE_HEADERS },
     );
   }
 }
 
-/**
- * POST /api/admin/products
- *
- * Create a new product.
- */
 export async function POST(request: Request) {
   const auth = await requireAdminApi(request);
 
-  if (!auth.ok) {
-    return auth.response;
-  }
+  if (!auth.ok) return auth.response;
 
   let body: unknown;
 
@@ -75,7 +60,7 @@ export async function POST(request: Request) {
         success: false,
         message: "A valid JSON body is required.",
       },
-      { status: 400 },
+      { status: 400, headers: RESPONSE_HEADERS },
     );
   }
 
@@ -87,7 +72,7 @@ export async function POST(request: Request) {
         success: false,
         message: validation.message,
       },
-      { status: 400 },
+      { status: 400, headers: RESPONSE_HEADERS },
     );
   }
 
@@ -99,30 +84,28 @@ export async function POST(request: Request) {
         success: true,
         data: product,
       },
-      { status: 201 },
+      { status: 201, headers: RESPONSE_HEADERS },
     );
   } catch (error) {
-    // The selected category does not exist.
     if (error instanceof ProductCategoryNotFoundError) {
       return NextResponse.json(
         {
           success: false,
           message: "The selected category does not exist.",
         },
-        { status: 400 },
+        { status: 400, headers: RESPONSE_HEADERS },
       );
     }
 
     const code = getDatabaseErrorCode(error);
 
-    // Duplicate product slug.
     if (code === "23505") {
       return NextResponse.json(
         {
           success: false,
           message: "A product with this slug already exists.",
         },
-        { status: 409 },
+        { status: 409, headers: RESPONSE_HEADERS },
       );
     }
 
@@ -134,10 +117,8 @@ export async function POST(request: Request) {
         message: "Unable to create product.",
       },
       {
-        status:
-          code === "22P02" || code === "23514"
-            ? 400
-            : 500,
+        status: code === "22P02" || code === "23514" ? 400 : 500,
+        headers: RESPONSE_HEADERS,
       },
     );
   }

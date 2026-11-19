@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getPool } from "@/lib/db";
+import { consumeRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import {
   GET,
@@ -9,6 +10,9 @@ import {
 
 vi.mock("@/lib/db", () => ({ getPool: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+vi.mock("@/lib/rate-limit", () => ({
+  consumeRateLimit: vi.fn(),
+}));
 
 const CUSTOMER_ID = "550e8400-e29b-41d4-a716-446655440000";
 const ADMIN_ID = "660e8400-e29b-41d4-a716-446655440000";
@@ -55,6 +59,12 @@ beforeEach(() => {
   mockClientQuery.mockReset();
   mockConnect.mockReset();
   mockRelease.mockReset();
+
+  vi.mocked(consumeRateLimit).mockReset();
+  vi.mocked(consumeRateLimit).mockResolvedValue({
+    allowed: true,
+    retryAfterSeconds: 0,
+  });
 
   vi.mocked(createClient).mockResolvedValue({
     auth: { getUser: mockGetUser },
@@ -196,6 +206,19 @@ describe("POST /api/support/conversation", () => {
     );
 
     expect(response.status).toBe(400);
+    expect(mockConnect).not.toHaveBeenCalled();
+  });
+
+  it("returns 429 when the customer exceeds the support rate limit", async () => {
+    vi.mocked(consumeRateLimit).mockResolvedValueOnce({
+      allowed: false,
+      retryAfterSeconds: 300,
+    });
+
+    const response = await POST(createPostRequest({ message: "Please help." }));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("300");
     expect(mockConnect).not.toHaveBeenCalled();
   });
 

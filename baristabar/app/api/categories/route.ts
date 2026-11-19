@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import { findActiveCategories } from "@/lib/categories-repository";
 

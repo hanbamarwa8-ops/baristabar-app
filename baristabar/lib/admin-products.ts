@@ -1,6 +1,5 @@
 import { getPool } from "@/lib/db";
 
-
 // TYPES
 export interface ProductWriteInput {
   name: string;
@@ -65,7 +64,6 @@ const RETURNING_COLUMNS = `
   updated_at
 `;
 
-
 // HELPERS
 function isRecord(value: unknown): value is Record<string, unknown> {
   return (
@@ -75,11 +73,59 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   );
 }
 
+function parseDatabasePrice(value: number | string): number {
+  const price = Number(value);
+
+  if (!Number.isFinite(price) || price < 0) {
+    throw new Error("Invalid product price returned by the database.");
+  }
+
+  return price;
+}
+
+function parseDatabaseStock(value: number | string): number {
+  const stock = Number(value);
+
+  if (!Number.isSafeInteger(stock) || stock < 0) {
+    throw new Error("Invalid product stock returned by the database.");
+  }
+
+  return stock;
+}
+
 function serializeProduct(product: AdminProductRow): AdminProduct {
+  if (
+    typeof product.id !== "string" ||
+    typeof product.name !== "string" ||
+    typeof product.slug !== "string" ||
+    typeof product.category !== "string" ||
+    typeof product.is_active !== "boolean"
+  ) {
+    throw new Error("Invalid product record returned by the database.");
+  }
+
   return {
-    ...product,
-    price: Number(product.price),
-    stock: Number(product.stock),
+    id: product.id,
+    name: product.name,
+    slug: product.slug,
+    description:
+      typeof product.description === "string"
+        ? product.description
+        : null,
+    price: parseDatabasePrice(product.price),
+    category: product.category,
+    category_id:
+      typeof product.category_id === "string"
+        ? product.category_id
+        : null,
+    image_url:
+      typeof product.image_url === "string" && product.image_url.trim()
+        ? product.image_url.trim()
+        : null,
+    stock: parseDatabaseStock(product.stock),
+    is_active: product.is_active,
+    created_at: product.created_at,
+    updated_at: product.updated_at,
   };
 }
 
@@ -110,7 +156,6 @@ export function validateProductPayload(
 ):
   | { ok: true; value: ProductWriteInput }
   | { ok: false; message: string } {
-
   if (!isRecord(body)) {
     return {
       ok: false,
@@ -119,33 +164,25 @@ export function validateProductPayload(
   }
 
   const name =
-    typeof body.name === "string"
-      ? body.name.trim()
-      : "";
+    typeof body.name === "string" ? body.name.trim() : "";
 
   const slug =
-    typeof body.slug === "string"
-      ? body.slug.trim()
-      : "";
+    typeof body.slug === "string" ? body.slug.trim() : "";
 
   const category =
-    typeof body.category === "string"
-      ? body.category.trim()
-      : "";
+    typeof body.category === "string" ? body.category.trim() : "";
 
   const price =
     typeof body.price === "number"
       ? body.price
-      : typeof body.price === "string" &&
-          body.price.trim() !== ""
+      : typeof body.price === "string" && body.price.trim() !== ""
         ? Number(body.price)
         : Number.NaN;
 
   const stock =
     typeof body.stock === "number"
       ? body.stock
-      : typeof body.stock === "string" &&
-          body.stock.trim() !== ""
+      : typeof body.stock === "string" && body.stock.trim() !== ""
         ? Number(body.stock)
         : Number.NaN;
 
@@ -162,7 +199,6 @@ export function validateProductPayload(
         : undefined;
 
   // Name
-
   if (!name || name.length > 150) {
     return {
       ok: false,
@@ -171,11 +207,7 @@ export function validateProductPayload(
   }
 
   // Slug
-
-  if (
-    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ||
-    slug.length > 180
-  ) {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 180) {
     return {
       ok: false,
       message: "Slug must use lowercase letters, numbers and single hyphens only.",
@@ -183,7 +215,6 @@ export function validateProductPayload(
   }
 
   // Category compatibility
-
   if (!category && !categoryId) {
     return {
       ok: false,
@@ -199,7 +230,6 @@ export function validateProductPayload(
   }
 
   // Category UUID
-
   if (
     categoryId !== null &&
     (
@@ -216,7 +246,6 @@ export function validateProductPayload(
   }
 
   // Price
-
   if (
     !Number.isFinite(price) ||
     price < 0 ||
@@ -230,7 +259,6 @@ export function validateProductPayload(
   }
 
   // Stock
-
   if (
     !Number.isInteger(stock) ||
     stock < 0 ||
@@ -243,7 +271,6 @@ export function validateProductPayload(
   }
 
   // Description
-
   if (description === undefined) {
     return {
       ok: false,
@@ -252,7 +279,6 @@ export function validateProductPayload(
   }
 
   // Image
-
   if (imageUrl === undefined) {
     return {
       ok: false,
@@ -289,7 +315,6 @@ export function validateProductPayload(
   }
 
   // Active status
-
   if (typeof body.is_active !== "boolean") {
     return {
       ok: false,
@@ -321,9 +346,7 @@ export function isValidProductId(id: string): boolean {
 }
 
 // DATABASE ERROR
-export function getDatabaseErrorCode(
-  error: unknown,
-): string | null {
+export function getDatabaseErrorCode(error: unknown): string | null {
   if (!isRecord(error) || typeof error.code !== "string") {
     return null;
   }
@@ -350,7 +373,7 @@ export async function findAllAdminProducts(): Promise<AdminProduct[]> {
     FROM public.products AS p
     LEFT JOIN public.categories AS c
       ON c.id = p.category_id
-    ORDER BY p.created_at DESC
+    ORDER BY p.created_at DESC, p.id DESC
   `);
 
   return result.rows.map(serializeProduct);
@@ -398,7 +421,7 @@ export async function createAdminProduct(
             OR LOWER(c.slug) = LOWER(BTRIM($9))
           )
         )
-      ORDER BY c.sort_order ASC
+      ORDER BY c.sort_order ASC, c.id ASC
       LIMIT 1
       RETURNING ${RETURNING_COLUMNS}
     `,
@@ -494,7 +517,6 @@ export async function updateAdminProduct(
   }
 
   // Distinguish an unknown product from an unknown category.
-
   const existingProduct = await pool.query<{ id: string }>(
     `
       SELECT id

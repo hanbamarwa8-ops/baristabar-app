@@ -89,7 +89,7 @@ type DeletedImage = {
   path: string;
 };
 
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_IMAGE_SIZE = 4 * 1024 * 1024;
 
 const ALLOWED_IMAGE_TYPES = [
   "image/jpeg",
@@ -492,7 +492,7 @@ export function ProductsManager() {
     }
 
     if (file.size > MAX_IMAGE_SIZE) {
-      setErrorMessage("La photo ne doit pas dépasser 5 Mo.");
+      setErrorMessage("La photo ne doit pas dépasser 4 Mo.");
 
       return;
     }
@@ -1409,7 +1409,7 @@ export function ProductsManager() {
                 </span>
 
                 <p className="mt-4 text-[11px] text-[#A08D7E]">
-                  JPEG, PNG, WebP ou AVIF · 5 Mo maximum
+                  JPEG, PNG, WebP ou AVIF · 4 Mo maximum
                 </p>
               </div>
 
